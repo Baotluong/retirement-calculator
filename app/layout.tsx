@@ -1,4 +1,4 @@
-﻿import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -13,6 +13,11 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+export const viewport: Viewport = {
+  colorScheme: "light",
+  themeColor: "#fafafa",
+};
+
 export const metadata: Metadata = {
   title: "Retirement Calculator",
   description: "Project your net worth over time with configurable retirement scenarios",
@@ -26,9 +31,9 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} h-full`}
     >
-      <body className="min-h-full bg-zinc-50 text-zinc-900">
+      <body className="min-h-full font-sans text-zinc-900">
         <header className="site-header border-b border-zinc-200 bg-white">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
             <Link href="/" className="text-lg font-semibold text-emerald-700">
