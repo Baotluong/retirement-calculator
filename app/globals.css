@@ -48,3 +48,10 @@ body {
     padding: 0;
   }
 }
+label:has(:checked) .select-when-unselected {
+  display: none;
+}
+
+label:has(:checked) .select-when-selected {
+  display: inline;
+}

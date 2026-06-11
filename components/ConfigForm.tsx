@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -12,6 +12,7 @@ import { formatSafeRetirementAgeTooltip } from "@/lib/scenario-summary";
 import { formatMoneyDisplay } from "@/lib/money-format";
 import { calculateActiveExpenseYearlySum, calculateExpenseBreakdownTotals, normalizeExpenseBreakdown } from "@/lib/expenses";
 import { calculateNetWorthSum, roundMoney } from "@/lib/net-worth";
+import { createClientId } from "@/lib/client-id";
 import type {
   ExpenseMonthInput,
   NetWorthItemInput,
@@ -90,7 +91,7 @@ function toFormState(
 function toNetWorthRows(items: NetWorthItemInput[]): NetWorthRow[] {
   return items.map((item) => ({
     ...item,
-    clientId: crypto.randomUUID(),
+    clientId: createClientId(),
   }));
 }
 
@@ -673,6 +674,7 @@ function ReadOnlyAgeField({ label, value, helperText, tooltip }: ReadOnlyAgeFiel
     </div>
   );
 }
+
 
 
 

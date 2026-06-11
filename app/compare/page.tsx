@@ -3,36 +3,18 @@ import { ExportComparePdfButton } from "@/components/ExportComparePdfButton";
 import { notFound } from "next/navigation";
 import { CompareProjectionChart } from "@/components/CompareProjectionChart";
 import { CompareStatsTable } from "@/components/CompareStatsTable";
+import { parseCompareIds } from "@/lib/compare-params";
 import { getConfiguration } from "@/lib/queries";
 import { getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { projectNetWorth } from "@/lib/projection";
 
 type PageProps = {
-  searchParams: Promise<{ ids?: string }>;
+  searchParams: Promise<{ ids?: string | string[] }>;
 };
-
-const MIN_COMPARE = 2;
-const MAX_COMPARE = 4;
-
-function parseIds(raw: string | undefined): number[] | null {
-  if (!raw?.trim()) return null;
-
-  const ids = raw
-    .split(",")
-    .map((part) => Number(part.trim()))
-    .filter((id) => Number.isInteger(id) && id > 0);
-
-  const unique = Array.from(new Set(ids));
-  if (unique.length < MIN_COMPARE || unique.length > MAX_COMPARE) {
-    return null;
-  }
-
-  return unique;
-}
 
 export default async function ComparePage({ searchParams }: PageProps) {
   const { ids: idsParam } = await searchParams;
-  const ids = parseIds(idsParam);
+  const ids = parseCompareIds(idsParam);
 
   if (!ids) {
     notFound();
@@ -84,4 +66,3 @@ export default async function ComparePage({ searchParams }: PageProps) {
     </div>
   );
 }
-

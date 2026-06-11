@@ -1,5 +1,6 @@
-﻿"use client";
+"use client";
 
+import { useEffect, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -19,6 +20,7 @@ export type CompareChartSeries = {
 };
 
 const SERIES_COLORS = ["#059669", "#2563eb", "#dc2626", "#9333ea"] as const;
+const CHART_HEIGHT = 384;
 
 type CompareProjectionChartProps = {
   series: CompareChartSeries[];
@@ -55,41 +57,56 @@ function buildChartData(series: CompareChartSeries[]) {
 }
 
 export function CompareProjectionChart({ series }: CompareProjectionChartProps) {
+  const [mounted, setMounted] = useState(false);
   const data = buildChartData(series);
 
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
   return (
-    <div className="h-96 w-full rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
-          <XAxis
-            dataKey="age"
-            tickFormatter={(value) => formatProjectionAge(Number(value))}
-            tick={{ fontSize: 12 }}
-          />
-          <YAxis
-            tickFormatter={(value) => "$" + Math.round(Number(value) / 1000) + "k"}
-            tick={{ fontSize: 12 }}
-          />
-          <Tooltip
-            formatter={(value) => formatCurrency(Number(value))}
-            labelFormatter={(label) => "Age " + formatProjectionAge(Number(label))}
-          />
-          <Legend />
-          {series.map((item, index) => (
-            <Line
-              key={item.name}
-              type="monotone"
-              dataKey={"series" + index}
-              name={item.name}
-              stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
-              strokeWidth={2}
-              dot={false}
-              connectNulls
-            />
-          ))}
-        </LineChart>
-      </ResponsiveContainer>
+    <div className="w-full min-w-0 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <div style={{ width: "100%", height: CHART_HEIGHT, minHeight: CHART_HEIGHT }}>
+        {mounted ? (
+          <ResponsiveContainer width="100%" height={CHART_HEIGHT} minWidth={0}>
+            <LineChart data={data}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#e4e4e7" />
+              <XAxis
+                dataKey="age"
+                tickFormatter={(value) => formatProjectionAge(Number(value))}
+                tick={{ fontSize: 12 }}
+                minTickGap={24}
+              />
+              <YAxis
+                tickFormatter={(value) => "$" + Math.round(Number(value) / 1000) + "k"}
+                tick={{ fontSize: 12 }}
+                width={56}
+              />
+              <Tooltip
+                formatter={(value) => formatCurrency(Number(value))}
+                labelFormatter={(label) => "Age " + formatProjectionAge(Number(label))}
+              />
+              <Legend />
+              {series.map((item, index) => (
+                <Line
+                  key={item.name}
+                  type="monotone"
+                  dataKey={"series" + index}
+                  name={item.name}
+                  stroke={SERIES_COLORS[index % SERIES_COLORS.length]}
+                  strokeWidth={2}
+                  dot={false}
+                  connectNulls
+                />
+              ))}
+            </LineChart>
+          </ResponsiveContainer>
+        ) : (
+          <div className="flex h-full items-center justify-center text-sm text-zinc-500">
+            Loading chart...
+          </div>
+        )}
+      </div>
     </div>
   );
 }

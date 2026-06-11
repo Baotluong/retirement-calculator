@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { MoneyInput } from "@/components/MoneyInput";
 import { formatMoneyDisplay } from "@/lib/money-format";
 import { calculateNetWorthSum, roundMoney } from "@/lib/net-worth";
+import { createClientId } from "@/lib/client-id";
 import type { NetWorthRow } from "@/lib/types";
 
 type NetWorthCalculatorModalProps = {
@@ -15,7 +16,7 @@ type NetWorthCalculatorModalProps = {
 
 function createEmptyRow(): NetWorthRow {
   return {
-    clientId: crypto.randomUUID(),
+    clientId: createClientId(),
     name: "",
     entryType: "credit",
     amount: 0,
@@ -189,4 +190,5 @@ export function NetWorthCalculatorModal({
     </div>
   );
 }
+
 

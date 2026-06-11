@@ -4,10 +4,8 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { ScenarioSummaryStatsGrid } from "@/components/ScenarioSummaryStatsGrid";
 import { formatCurrentAge } from "@/lib/age";
+import { MAX_COMPARE, MIN_COMPARE } from "@/lib/compare-params";
 import type { ConfigurationListItem } from "@/components/ConfigList";
-
-const MAX_COMPARE = 4;
-const MIN_COMPARE = 2;
 
 type ConfigListWithCompareProps = {
   items: ConfigurationListItem[];
@@ -19,13 +17,13 @@ function canCompare(count: number): boolean {
 
 export function ConfigListWithCompare({ items }: ConfigListWithCompareProps) {
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [exporting, setExporting] = useState(false);
+  const [clearing, setClearing] = useState(false);
 
   const compareHref = useMemo(() => {
     if (!canCompare(selectedIds.length)) return null;
     return "/compare?ids=" + selectedIds.join(",");
   }, [selectedIds]);
-
-  const [exporting, setExporting] = useState(false);
 
   function toggleSelection(id: number) {
     setSelectedIds((current) => {
@@ -34,6 +32,12 @@ export function ConfigListWithCompare({ items }: ConfigListWithCompareProps) {
       }
       return [...current, id];
     });
+  }
+
+  function handleClear() {
+    setClearing(true);
+    setSelectedIds([]);
+    window.setTimeout(() => setClearing(false), 180);
   }
 
   async function handleExport() {
@@ -85,76 +89,71 @@ export function ConfigListWithCompare({ items }: ConfigListWithCompareProps) {
         : selectedIds.length + " selected";
 
   return (
-    <>
+    <div className="space-y-4 pb-4">
       <div className="grid gap-4 md:grid-cols-2">
         {items.map(({ config, summary }) => {
           const isSelected = selectedIds.includes(config.id);
 
           return (
-            <div
+            <article
               key={config.id}
-              role="button"
-              tabIndex={0}
-              onClick={() => toggleSelection(config.id)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter" || event.key === " ") {
-                  event.preventDefault();
-                  toggleSelection(config.id);
-                }
-              }}
               className={
-                "cursor-pointer rounded-xl border bg-white p-5 shadow-sm transition " +
+                "min-w-0 rounded-xl border bg-white p-5 shadow-sm " +
                 (isSelected
-                  ? "border-emerald-400 ring-1 ring-emerald-200"
-                  : "border-zinc-200 hover:border-emerald-300 hover:shadow-md")
+                  ? "border-emerald-400 ring-2 ring-emerald-200"
+                  : "border-zinc-200")
               }
             >
-              <div className="flex items-start gap-3">
-                <Link
-                  href={"/configurations/" + config.id}
-                  onClick={(event) => event.stopPropagation()}
-                  className="min-w-0 flex-1 rounded-lg hover:bg-zinc-50"
-                >
-                  <h2 className="text-lg font-semibold text-zinc-900 hover:text-emerald-800">
-                    {config.name}
-                  </h2>
-                  <p className="mt-1 text-sm text-zinc-500">
-                    Age {formatCurrentAge(config.currentAgeYears, config.currentAgeMonths)} to{" "}
-                    {config.lifeExpectancy} - Retire at {config.retirementAge}
-                  </p>
-                  {config.location ? (
-                    <p className="mt-1 text-sm text-zinc-500">{config.location}</p>
-                  ) : null}
-                  {config.description ? (
-                    <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{config.description}</p>
-                  ) : null}
-                </Link>
-                <input
-                  type="checkbox"
-                  checked={isSelected}
-                  onChange={() => toggleSelection(config.id)}
-                  onClick={(event) => event.stopPropagation()}
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-zinc-300 text-emerald-600"
-                  aria-label={"Select " + config.name}
-                />
-              </div>
+              <button
+                type="button"
+                aria-pressed={isSelected}
+                onClick={() => toggleSelection(config.id)}
+                className={
+                  "mb-3 flex min-h-12 w-full touch-manipulation cursor-pointer items-center justify-center rounded-lg px-4 text-sm font-semibold transition active:scale-[0.98] " +
+                  (isSelected
+                    ? "bg-emerald-600 text-white"
+                    : "border-2 border-zinc-300 bg-zinc-50 text-zinc-800")
+                }
+              >
+                {isSelected ? "Selected - tap to deselect" : "Select scenario"}
+              </button>
 
-              <div className="mt-4 border-t border-zinc-100 pt-4">
+              <Link href={"/configurations/" + config.id} className="block min-w-0 rounded-lg">
+                <h2 className="text-lg font-semibold text-zinc-900">{config.name}</h2>
+                <p className="mt-1 text-sm text-zinc-500">
+                  Age {formatCurrentAge(config.currentAgeYears, config.currentAgeMonths)} to{" "}
+                  {config.lifeExpectancy} - Retire at {config.retirementAge}
+                </p>
+                {config.location ? (
+                  <p className="mt-1 text-sm text-zinc-500">{config.location}</p>
+                ) : null}
+                {config.description ? (
+                  <p className="mt-2 line-clamp-2 text-sm text-zinc-600">{config.description}</p>
+                ) : null}
+              </Link>
+
+              <div className="mt-4 min-w-0 border-t border-zinc-100 pt-4">
                 <ScenarioSummaryStatsGrid stats={summary} compact />
               </div>
-            </div>
+            </article>
           );
         })}
       </div>
 
       {selectedIds.length > 0 ? (
-        <div className="sticky bottom-4 z-40 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 bg-white p-4 shadow-lg">
-          <p className="text-sm text-zinc-700">{compareMessage}</p>
-          <div className="flex gap-3">
+        <div
+          className="sticky bottom-0 z-40 -mx-6 mt-4 flex flex-col gap-3 border-t border-emerald-200 bg-white/95 px-6 py-4 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur-sm supports-[backdrop-filter]:bg-white/90 sm:bottom-4 sm:mx-0 sm:flex-row sm:items-center sm:justify-between sm:rounded-xl sm:border sm:shadow-lg"
+          style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}
+        >
+          <p className="text-sm font-medium text-zinc-800">{compareMessage}</p>
+          <div className="flex flex-wrap gap-2 sm:mt-0">
             <button
               type="button"
-              onClick={() => setSelectedIds([])}
-              className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
+              onClick={handleClear}
+              className={
+                "min-h-12 touch-manipulation rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 transition-transform duration-150 active:scale-[0.96] " +
+                (clearing ? "scale-95 bg-zinc-100" : "hover:bg-zinc-50")
+              }
             >
               Clear
             </button>
@@ -162,19 +161,19 @@ export function ConfigListWithCompare({ items }: ConfigListWithCompareProps) {
               type="button"
               onClick={handleExport}
               disabled={exporting}
-              className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+              className="min-h-12 touch-manipulation rounded-lg border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
             >
               {exporting ? "Exporting..." : "Export PDF"}
             </button>
             {compareHref ? (
               <Link
                 href={compareHref}
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
+                className="inline-flex min-h-12 touch-manipulation items-center rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
               >
                 Compare selected
               </Link>
             ) : (
-              <span className="rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-500">
+              <span className="inline-flex min-h-12 items-center rounded-lg bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-600">
                 {selectedIds.length > MAX_COMPARE
                   ? "Compare up to " + MAX_COMPARE
                   : "Select at least " + MIN_COMPARE + " to compare"}
@@ -183,7 +182,7 @@ export function ConfigListWithCompare({ items }: ConfigListWithCompareProps) {
           </div>
         </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
