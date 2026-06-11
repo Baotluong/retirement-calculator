@@ -1,0 +1,87 @@
+﻿import Link from "next/link";
+import { ExportComparePdfButton } from "@/components/ExportComparePdfButton";
+import { notFound } from "next/navigation";
+import { CompareProjectionChart } from "@/components/CompareProjectionChart";
+import { CompareStatsTable } from "@/components/CompareStatsTable";
+import { getConfiguration } from "@/lib/queries";
+import { getScenarioSummaryStats } from "@/lib/scenario-summary";
+import { projectNetWorth } from "@/lib/projection";
+
+type PageProps = {
+  searchParams: Promise<{ ids?: string }>;
+};
+
+const MIN_COMPARE = 2;
+const MAX_COMPARE = 4;
+
+function parseIds(raw: string | undefined): number[] | null {
+  if (!raw?.trim()) return null;
+
+  const ids = raw
+    .split(",")
+    .map((part) => Number(part.trim()))
+    .filter((id) => Number.isInteger(id) && id > 0);
+
+  const unique = Array.from(new Set(ids));
+  if (unique.length < MIN_COMPARE || unique.length > MAX_COMPARE) {
+    return null;
+  }
+
+  return unique;
+}
+
+export default async function ComparePage({ searchParams }: PageProps) {
+  const { ids: idsParam } = await searchParams;
+  const ids = parseIds(idsParam);
+
+  if (!ids) {
+    notFound();
+  }
+
+  const configurations = await Promise.all(ids.map((id) => getConfiguration(id)));
+  if (configurations.some((config) => !config)) {
+    notFound();
+  }
+
+  const scenarios = configurations.map((config) => {
+    const safeConfig = config!;
+    return {
+      name: safeConfig.name,
+      stats: getScenarioSummaryStats(safeConfig),
+      projection: projectNetWorth(safeConfig),
+    };
+  });
+
+  return (
+    <div className="space-y-8">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-emerald-700">Compare scenarios</p>
+          <h1 className="text-3xl font-bold tracking-tight">Side-by-side comparison</h1>
+          <p className="mt-2 text-zinc-600">
+            Comparing {scenarios.length} scenarios by summary metrics and projected net worth.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-3">
+          <ExportComparePdfButton ids={ids} />
+          <Link href="/" className="text-sm font-medium text-zinc-600 hover:text-zinc-900">
+            Back to dashboard
+          </Link>
+        </div>
+      </div>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Summary comparison</h2>
+        <CompareStatsTable scenarios={scenarios.map(({ name, stats }) => ({ name, stats }))} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Net worth overlay</h2>
+        <CompareProjectionChart
+          series={scenarios.map(({ name, projection }) => ({ name, projection }))}
+        />
+      </section>
+    </div>
+  );
+}
+
