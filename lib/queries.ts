@@ -1,4 +1,4 @@
-﻿import { desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "./db";
 import {
   configurations,
@@ -6,7 +6,7 @@ import {
   netWorthItems,
 } from "./schema";
 import { defaultExpenseBreakdown, normalizeExpenseBreakdown } from "./expenses";
-import { computeEarliestRetirementAge } from "./retirement-calc";
+import { computeEarliestRetirementAge, computeSafeRetirementAge } from "./retirement-calc";
 import { defaultNetWorthBreakdown } from "./net-worth";
 import type {
   ExpenseMonthInput,
@@ -39,6 +39,7 @@ function toConfig(
     currentAgeMonths: row.currentAgeMonths,
     retirementAge: row.retirementAge,
     earliestRetirementAge: row.earliestRetirementAge ?? null,
+    safeRetirementAge: row.safeRetirementAge ?? null,
     lifeExpectancy: row.lifeExpectancy,
     currentNetWorth: row.currentNetWorth,
     annualIncome: row.annualIncome,
@@ -46,12 +47,54 @@ function toConfig(
     investmentReturnRate: row.investmentReturnRate,
     inflationRate: row.inflationRate,
     postRetirementExpenses: row.postRetirementExpenses ?? undefined,
+    optionalExpensesStartAfterYears: row.optionalExpensesStartAfterYears ?? undefined,
     netWorthBreakdown,
     expenseBreakdown,
   };
 }
 
-function toRowValues(input: RetirementConfigInput) {
+function toCalculationInput(config: RetirementConfig): RetirementConfigInput {
+  const {
+    id: _id,
+    createdAt: _createdAt,
+    earliestRetirementAge: _earliestRetirementAge,
+    safeRetirementAge: _safeRetirementAge,
+    netWorthBreakdown: _netWorthBreakdown,
+    expenseBreakdown,
+    ...input
+  } = config;
+
+  return {
+    ...input,
+    expenseBreakdown,
+  };
+}
+
+function computeDerivedRowValues(config: RetirementConfig) {
+  const input = toCalculationInput(config);
+
+  return {
+    earliestRetirementAge: computeEarliestRetirementAge(input),
+    safeRetirementAge: computeSafeRetirementAge(input),
+  };
+}
+
+function withCalculationBreakdown(
+  input: RetirementConfigInput,
+  expenseBreakdown?: ExpenseMonthInput[]
+): RetirementConfigInput {
+  return {
+    ...input,
+    expenseBreakdown: expenseBreakdown ?? input.expenseBreakdown,
+  };
+}
+
+function toRowValues(
+  input: RetirementConfigInput,
+  expenseBreakdown?: ExpenseMonthInput[]
+) {
+  const calculationInput = withCalculationBreakdown(input, expenseBreakdown);
+
   return {
     name: input.name,
     description: input.description ?? null,
@@ -59,7 +102,8 @@ function toRowValues(input: RetirementConfigInput) {
     currentAgeYears: input.currentAgeYears,
     currentAgeMonths: input.currentAgeMonths,
     retirementAge: input.retirementAge,
-    earliestRetirementAge: computeEarliestRetirementAge(input),
+    earliestRetirementAge: computeEarliestRetirementAge(calculationInput),
+    safeRetirementAge: computeSafeRetirementAge(calculationInput),
     lifeExpectancy: input.lifeExpectancy,
     currentNetWorth: input.currentNetWorth,
     annualIncome: input.annualIncome,
@@ -67,6 +111,7 @@ function toRowValues(input: RetirementConfigInput) {
     investmentReturnRate: input.investmentReturnRate,
     inflationRate: input.inflationRate,
     postRetirementExpenses: input.postRetirementExpenses ?? null,
+    optionalExpensesStartAfterYears: input.optionalExpensesStartAfterYears ?? null,
   };
 }
 
@@ -234,7 +279,7 @@ export async function createConfiguration(
   const rows = await db
     .insert(configurations)
     .values({
-      ...toRowValues(input),
+      ...toRowValues(input, expenseBreakdown),
       createdAt: new Date().toISOString(),
     })
     .returning();
@@ -253,7 +298,7 @@ export async function updateConfiguration(
 ): Promise<RetirementConfig | null> {
   const rows = await db
     .update(configurations)
-    .set(toRowValues(input))
+    .set(toRowValues(input, breakdowns.expenseBreakdown))
     .where(eq(configurations.id, id))
     .returning();
 
@@ -293,4 +338,61 @@ export async function deleteConfiguration(id: number): Promise<boolean> {
     .returning({ id: configurations.id });
 
   return rows.length > 0;
+}
+export type RecomputeDerivedFieldsScenarioResult = {
+  id: number;
+  name: string;
+  changed: boolean;
+  earliestRetirementAge: number | null;
+  safeRetirementAge: number | null;
+  previousEarliestRetirementAge: number | null;
+  previousSafeRetirementAge: number | null;
+};
+
+export type RecomputeDerivedFieldsResult = {
+  total: number;
+  updated: number;
+  unchanged: number;
+  scenarios: RecomputeDerivedFieldsScenarioResult[];
+};
+
+export async function recomputeAllDerivedConfigurationFields(): Promise<RecomputeDerivedFieldsResult> {
+  const configs = await listConfigurations();
+  const scenarios: RecomputeDerivedFieldsScenarioResult[] = [];
+  let updated = 0;
+
+  for (const config of configs) {
+    const derived = computeDerivedRowValues(config);
+    const changed =
+      derived.earliestRetirementAge !== config.earliestRetirementAge ||
+      derived.safeRetirementAge !== config.safeRetirementAge;
+
+    scenarios.push({
+      id: config.id,
+      name: config.name,
+      changed,
+      earliestRetirementAge: derived.earliestRetirementAge,
+      safeRetirementAge: derived.safeRetirementAge,
+      previousEarliestRetirementAge: config.earliestRetirementAge,
+      previousSafeRetirementAge: config.safeRetirementAge,
+    });
+
+    if (!changed) {
+      continue;
+    }
+
+    await db
+      .update(configurations)
+      .set(derived)
+      .where(eq(configurations.id, config.id));
+
+    updated += 1;
+  }
+
+  return {
+    total: configs.length,
+    updated,
+    unchanged: configs.length - updated,
+    scenarios,
+  };
 }

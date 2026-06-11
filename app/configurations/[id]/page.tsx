@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfigForm } from "@/components/ConfigForm";
 import { DeleteScenarioButton } from "@/components/DeleteScenarioButton";
@@ -51,6 +51,9 @@ export default async function ConfigurationPage({ params }: PageProps) {
             Projected from age {formatCurrentAge(configuration.currentAgeYears, configuration.currentAgeMonths)} to {configuration.lifeExpectancy}. Retire at {configuration.retirementAge}
             {configuration.earliestRetirementAge !== null
               ? ", earliest sustainable age " + configuration.earliestRetirementAge
+              : ""}
+            {configuration.safeRetirementAge !== null
+              ? ", safe retirement age " + configuration.safeRetirementAge
               : ""}
             .
           </p>

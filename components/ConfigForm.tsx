@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -6,8 +6,11 @@ import { MoneyField, MoneyInput } from "@/components/MoneyInput";
 import { ExpensesBreakdownModal } from "@/components/ExpensesBreakdownModal";
 import { NetWorthCalculatorModal } from "@/components/NetWorthCalculatorModal";
 import { TakehomeCalculatorModal } from "@/components/TakehomeCalculatorModal";
+import { InfoTooltip } from "@/components/InfoTooltip";
+import { getSafeRetirementThresholdAtDeath } from "@/lib/projection";
+import { formatSafeRetirementAgeTooltip } from "@/lib/scenario-summary";
 import { formatMoneyDisplay } from "@/lib/money-format";
-import { calculateExpenseBreakdownTotals, normalizeExpenseBreakdown } from "@/lib/expenses";
+import { calculateActiveExpenseYearlySum, calculateExpenseBreakdownTotals, normalizeExpenseBreakdown } from "@/lib/expenses";
 import { calculateNetWorthSum, roundMoney } from "@/lib/net-worth";
 import type {
   ExpenseMonthInput,
@@ -39,6 +42,7 @@ const defaultValues: RetirementConfigInput = {
   investmentReturnRate: 0.06,
   inflationRate: 0.033,
   postRetirementExpenses: 0,
+  optionalExpensesStartAfterYears: undefined,
 };
 
 function formatSaveError(error: unknown): string {
@@ -79,6 +83,7 @@ function toFormState(
     investmentReturnRate: config.investmentReturnRate,
     inflationRate: config.inflationRate,
     postRetirementExpenses: config.postRetirementExpenses,
+    optionalExpensesStartAfterYears: config.optionalExpensesStartAfterYears,
   };
 }
 
@@ -129,6 +134,12 @@ export function ConfigForm({
   );
   const [expensesModalOpen, setExpensesModalOpen] = useState(false);
   const [takehomeModalOpen, setTakehomeModalOpen] = useState(false);
+  const [previewAges, setPreviewAges] = useState<{
+    earliestRetirementAge: number | null;
+    safeRetirementAge: number | null;
+  } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
 
   const isEditing = Boolean(initialValues);
   const fieldClass = readOnly
@@ -147,9 +158,14 @@ export function ConfigForm({
     updateField("currentNetWorth", Math.max(0, roundMoney(total)));
   }
 
-  function handleApplyExpenses(months: ExpenseMonthInput[], yearlySum: number) {
+  function handleApplyExpenses(
+    months: ExpenseMonthInput[],
+    yearlySum: number,
+    optionalExpensesStartAfterYears?: number
+  ) {
     setExpenseMonths(months);
     updateField("annualExpenses", Math.max(0, roundMoney(yearlySum)));
+    updateField("optionalExpensesStartAfterYears", optionalExpensesStartAfterYears);
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -164,6 +180,7 @@ export function ConfigForm({
         location: form.location?.trim() || undefined,
         netWorthBreakdown: toBreakdownPayload(netWorthRows),
         expenseBreakdown: expenseMonths,
+        optionalExpensesStartAfterYears: form.optionalExpensesStartAfterYears,
       };
 
       const url = isEditing
@@ -184,6 +201,8 @@ export function ConfigForm({
         return;
       }
 
+      setPreviewAges(null);
+
       if (isEditing) {
         router.refresh();
         return;
@@ -199,6 +218,56 @@ export function ConfigForm({
 
   const breakdownTotal = roundMoney(calculateNetWorthSum(toBreakdownPayload(netWorthRows)));
   const expenseTotals = calculateExpenseBreakdownTotals(expenseMonths);
+
+  const displayedEarliestRetirementAge =
+    previewAges?.earliestRetirementAge ?? initialValues?.earliestRetirementAge ?? null;
+  const displayedSafeRetirementAge =
+    previewAges?.safeRetirementAge ?? initialValues?.safeRetirementAge ?? null;
+  const safeRetirementAmount =
+    displayedSafeRetirementAge !== null
+      ? getSafeRetirementThresholdAtDeath({
+          ...form,
+          expenseBreakdown: expenseMonths,
+          retirementAge: displayedSafeRetirementAge,
+        })
+      : null;
+  const safeRetirementTooltip = formatSafeRetirementAgeTooltip(safeRetirementAmount);
+  const previewHelperText = previewAges
+    ? "Preview from current form values (not saved)."
+    : undefined;
+
+  async function handlePreviewAges() {
+    setPreviewing(true);
+    setPreviewError(null);
+
+    try {
+      const response = await fetch("/api/retirement-ages/preview", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...form,
+          description: form.description?.trim() || undefined,
+          location: form.location?.trim() || undefined,
+          expenseBreakdown: expenseMonths,
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setPreviewError(formatSaveError(data.error));
+        return;
+      }
+
+      setPreviewAges({
+        earliestRetirementAge: data.earliestRetirementAge ?? null,
+        safeRetirementAge: data.safeRetirementAge ?? null,
+      });
+    } catch {
+      setPreviewError("Failed to preview retirement ages");
+    } finally {
+      setPreviewing(false);
+    }
+  }
 
   const formClassName = "space-y-6 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm";
 
@@ -392,23 +461,44 @@ export function ConfigForm({
 
           <ReadOnlyAgeField
             label="Earliest retirement age"
-            value={initialValues?.earliestRetirementAge ?? null}
+            value={displayedEarliestRetirementAge}
             helperText={
               readOnly
                 ? undefined
-                : initialValues
-                  ? initialValues.earliestRetirementAge === null
-                    ? "Unable to calculate with the current assumptions."
-                    : "Recalculated automatically whenever you save."
-                  : "Calculated automatically when you save this scenario."
+                : previewHelperText ??
+                  (initialValues || prefill
+                    ? displayedEarliestRetirementAge === null
+                      ? "Unable to calculate with the current assumptions."
+                      : "Recalculated automatically whenever you save."
+                    : "Calculated automatically when you save or preview.")
+            }
+          />
+
+          <ReadOnlyAgeField
+            label="Safe retirement age"
+            value={displayedSafeRetirementAge}
+            tooltip={safeRetirementTooltip}
+            helperText={
+              readOnly
+                ? undefined
+                : previewHelperText ??
+                  (initialValues || prefill
+                    ? displayedSafeRetirementAge === null
+                      ? "Unable to calculate with the current assumptions."
+                      : "Recalculated automatically whenever you save."
+                    : "Calculated automatically when you save or preview.")
             }
           />
         </div>
 
         {!readOnly && error ? <p className="text-sm text-red-600">{error}</p> : null}
 
+        {!readOnly && previewError ? (
+          <p className="text-sm text-amber-700">{previewError}</p>
+        ) : null}
+
         {!readOnly ? (
-          <div className="flex gap-3">
+          <div className="flex flex-wrap gap-3">
             <button
               type="submit"
               disabled={saving}
@@ -421,6 +511,14 @@ export function ConfigForm({
                   : prefill
                     ? "Create clone"
                     : "Create scenario"}
+            </button>
+            <button
+              type="button"
+              onClick={handlePreviewAges}
+              disabled={previewing || saving}
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            >
+              {previewing ? "Previewing..." : "Preview retirement ages"}
             </button>
           </div>
         ) : null}
@@ -449,6 +547,7 @@ export function ConfigForm({
           <ExpensesBreakdownModal
             isOpen={expensesModalOpen}
             months={expenseMonths}
+            optionalExpensesStartAfterYears={form.optionalExpensesStartAfterYears}
             onClose={() => setExpensesModalOpen(false)}
             onApply={handleApplyExpenses}
           />
@@ -551,14 +650,20 @@ type ReadOnlyAgeFieldProps = {
   label: string;
   value: number | null;
   helperText?: string;
+  tooltip?: string;
 };
 
-function ReadOnlyAgeField({ label, value, helperText }: ReadOnlyAgeFieldProps) {
+function ReadOnlyAgeField({ label, value, helperText, tooltip }: ReadOnlyAgeFieldProps) {
   const displayValue = value === null ? "-" : String(value);
 
   return (
     <div className="block">
-      <span className="mb-1 block text-sm font-medium text-zinc-700">{label}</span>
+      <span className="mb-1 block text-sm font-medium text-zinc-700">
+        <span className="inline-flex items-center gap-1.5">
+          {label}
+          {tooltip ? <InfoTooltip text={tooltip} /> : null}
+        </span>
+      </span>
       <div className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-800">
         {displayValue}
       </div>
@@ -568,6 +673,7 @@ function ReadOnlyAgeField({ label, value, helperText }: ReadOnlyAgeFieldProps) {
     </div>
   );
 }
+
 
 
 

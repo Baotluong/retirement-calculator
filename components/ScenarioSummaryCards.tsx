@@ -1,5 +1,6 @@
 import { InfoTooltip } from "@/components/InfoTooltip";
 import {
+  formatSafeRetirementAgeTooltip,
   formatScenarioCurrency,
   scenarioSummaryTooltips,
   type ScenarioSummaryStats,
@@ -27,17 +28,26 @@ function SummaryCard({ label, value, tooltip }: SummaryCardProps) {
 
 export function ScenarioSummaryCards({
   earliestRetirementAge,
+  safeRetirementAge,
+  safeRetirementAmount,
   netWorthAtRetirement,
   netWorthAtLifeExpectancy,
   annualTakehome,
   annualContributions,
 }: ScenarioSummaryCardsProps) {
+  const safeRetirementTooltip = formatSafeRetirementAgeTooltip(safeRetirementAmount);
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
       <SummaryCard
         label="Earliest retirement age"
-        value={earliestRetirementAge === null ? "—" : String(earliestRetirementAge)}
+        value={earliestRetirementAge === null ? "-" : String(earliestRetirementAge)}
         tooltip={scenarioSummaryTooltips.earliestRetirementAge}
+      />
+      <SummaryCard
+        label="Safe retirement age"
+        value={safeRetirementAge === null ? "-" : String(safeRetirementAge)}
+        tooltip={safeRetirementTooltip}
       />
       <SummaryCard
         label="Net worth at retirement"

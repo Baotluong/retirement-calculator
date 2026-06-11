@@ -1,4 +1,4 @@
-﻿import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
+import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
 
 export const configurations = sqliteTable("configurations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -10,6 +10,7 @@ export const configurations = sqliteTable("configurations", {
   currentAgeMonths: integer("current_age_months").notNull().default(0),
   retirementAge: integer("retirement_age").notNull(),
   earliestRetirementAge: integer("earliest_retirement_age"),
+  safeRetirementAge: integer("safe_retirement_age"),
   lifeExpectancy: integer("life_expectancy").notNull(),
   currentNetWorth: real("current_net_worth").notNull(),
   annualIncome: real("annual_income").notNull(),
@@ -17,6 +18,7 @@ export const configurations = sqliteTable("configurations", {
   investmentReturnRate: real("investment_return_rate").notNull(),
   inflationRate: real("inflation_rate").notNull(),
   postRetirementExpenses: real("post_retirement_expenses"),
+  optionalExpensesStartAfterYears: integer("optional_expenses_start_after_years"),
 });
 
 export const netWorthItems = sqliteTable("net_worth_items", {
@@ -34,3 +36,4 @@ export const expenseBreakdownItems = sqliteTable("expense_breakdown_items", {
   month: integer("month").notNull(),
   amount: real("amount").notNull(),
 });
+

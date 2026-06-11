@@ -1,4 +1,4 @@
-﻿import { z } from "zod";
+import { z } from "zod";
 
 export const netWorthEntryTypeSchema = z.enum(["credit", "debit"]);
 
@@ -48,11 +48,12 @@ export const retirementConfigSchema = z.object({
       "Inflation rate must have at most 3 decimal places"
     ),
   postRetirementExpenses: z.coerce.number().optional(),
+  optionalExpensesStartAfterYears: z.coerce.number().int().min(0).optional(),
+  expenseBreakdown: z.array(expenseMonthSchema).optional(),
 });
 
 export const configurationSaveSchema = retirementConfigSchema.extend({
   netWorthBreakdown: z.array(netWorthItemSchema).optional(),
-  expenseBreakdown: z.array(expenseMonthSchema).optional(),
 });
 
 export type NetWorthEntryType = z.infer<typeof netWorthEntryTypeSchema>;
@@ -65,6 +66,7 @@ export type RetirementConfig = RetirementConfigInput & {
   id: number;
   createdAt: string;
   earliestRetirementAge: number | null;
+  safeRetirementAge: number | null;
   netWorthBreakdown?: NetWorthItemInput[];
   expenseBreakdown?: ExpenseMonthInput[];
 };

@@ -1,5 +1,5 @@
 import { roundToCents } from "./money-format";
-import type { ExpenseMonthInput } from "./types";
+import type { ExpenseMonthInput, RetirementConfigInput } from "./types";
 
 export const MONTH_NAMES = [
   "January",
@@ -95,6 +95,21 @@ export function createDefaultExpenseBreakdown(
 
 export const defaultExpenseBreakdown = createDefaultExpenseBreakdown();
 
+export function getDeferredExpenseYearlyAmount(items: ExpenseMonthInput[]): number {
+  const yearlyExpense = getYearlyExpenseAmount(items);
+  const recurringMonthlyExpense = getRecurringMonthlyExpenseAmount(items);
+  return roundToCents(yearlyExpense + roundToCents(recurringMonthlyExpense * 12));
+}
+
+export function getBaseCalendarExpenseYearlyAmount(items: ExpenseMonthInput[]): number {
+  const monthly = normalizeMonthlyExpenseBreakdown(items);
+  return roundToCents(monthly.reduce((sum, item) => sum + item.amount, 0));
+}
+
+export function hasOptionalExpenseRows(items: ExpenseMonthInput[]): boolean {
+  return getDeferredExpenseYearlyAmount(items) > 0;
+}
+
 export function calculateExpenseBreakdownTotals(items: ExpenseMonthInput[]) {
   const monthly = normalizeMonthlyExpenseBreakdown(items);
   const yearlyExpense = getYearlyExpenseAmount(items);
@@ -103,9 +118,8 @@ export function calculateExpenseBreakdownTotals(items: ExpenseMonthInput[]) {
   const monthlyYearlySum = roundToCents(
     monthly.reduce((sum, item) => sum + item.amount, 0)
   );
-  const yearlySum = roundToCents(
-    monthlyYearlySum + yearlyExpense + recurringMonthlyYearly
-  );
+  const deferredYearlySum = roundToCents(yearlyExpense + recurringMonthlyYearly);
+  const yearlySum = roundToCents(monthlyYearlySum + deferredYearlySum);
   const monthlyAvg = roundToCents(monthlyYearlySum / 12);
 
   return {
@@ -115,6 +129,55 @@ export function calculateExpenseBreakdownTotals(items: ExpenseMonthInput[]) {
     recurringMonthlyExpense,
     recurringMonthlyYearly,
     monthlyYearlySum,
+    deferredYearlySum,
+  };
+}
+
+export function calculateActiveExpenseYearlySum(
+  items: ExpenseMonthInput[],
+  optionalExpensesStartAfterYears?: number | null
+): number {
+  const totals = calculateExpenseBreakdownTotals(items);
+  const startAfterYears = optionalExpensesStartAfterYears ?? 0;
+
+  if (startAfterYears <= 0 || totals.deferredYearlySum <= 0) {
+    return totals.yearlySum;
+  }
+
+  return totals.monthlyYearlySum;
+}
+
+export type ExpenseProjectionParts =
+  | {
+      mode: "simple";
+      annualExpenses: number;
+    }
+  | {
+      mode: "breakdown";
+      baseAnnual: number;
+      deferredAnnual: number;
+      startAfterYears: number;
+    };
+
+export function resolveExpenseProjectionParts(
+  config: RetirementConfigInput
+): ExpenseProjectionParts {
+  const hasBreakdown = Boolean(
+    config.expenseBreakdown?.some((item) => item.amount > 0)
+  );
+
+  if (!hasBreakdown || !config.expenseBreakdown) {
+    return {
+      mode: "simple",
+      annualExpenses: config.annualExpenses,
+    };
+  }
+
+  return {
+    mode: "breakdown",
+    baseAnnual: getBaseCalendarExpenseYearlyAmount(config.expenseBreakdown),
+    deferredAnnual: getDeferredExpenseYearlyAmount(config.expenseBreakdown),
+    startAfterYears: config.optionalExpensesStartAfterYears ?? 0,
   };
 }
 

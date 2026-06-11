@@ -1,4 +1,5 @@
-﻿import type { RetirementConfigInput, ProjectionYear } from "./types";
+import { resolveExpenseProjectionParts } from "./expenses";
+import type { RetirementConfigInput, ProjectionYear } from "./types";
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
@@ -51,15 +52,36 @@ export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[]
   const postRetirementAdditional = config.postRetirementExpenses ?? 0;
   const takehome = config.annualIncome;
 
+  const expenseParts = resolveExpenseProjectionParts(config);
+  const currentAgeDecimal = config.currentAgeYears + config.currentAgeMonths / 12;
+
   let netWorth = config.currentNetWorth;
-  let expenses = config.annualExpenses;
+  let baseExpenses =
+    expenseParts.mode === "simple" ? expenseParts.annualExpenses : expenseParts.baseAnnual;
+  let deferredExpenses = 0;
+  const deferredNominal =
+    expenseParts.mode === "breakdown" ? expenseParts.deferredAnnual : 0;
+  const startAfterYears =
+    expenseParts.mode === "breakdown" ? expenseParts.startAfterYears : 0;
+  let deferredActivated = startAfterYears === 0 && deferredNominal > 0;
+
+  if (deferredActivated) {
+    deferredExpenses = deferredNominal;
+  }
 
   for (const [index, period] of periods.entries()) {
     const periodStartAge = period.targetAge - period.fraction;
+    const yearsFromStart = periodStartAge - currentAgeDecimal;
     const isWorking = periodStartAge < config.retirementAge;
 
+    if (!deferredActivated && deferredNominal > 0 && yearsFromStart >= startAfterYears) {
+      deferredActivated = true;
+      deferredExpenses =
+        deferredNominal * Math.pow(1 + config.inflationRate, startAfterYears);
+    }
+
     const periodIncome = isWorking ? takehome * period.fraction : 0;
-    let periodExpenses = expenses * period.fraction;
+    let periodExpenses = (baseExpenses + deferredExpenses) * period.fraction;
 
     if (!isWorking) {
       const yearsFromRetirement = periodStartAge - config.retirementAge;
@@ -91,7 +113,10 @@ export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[]
       1 + config.inflationRate,
       period.fraction
     );
-    expenses *= inflationMultiplier;
+    baseExpenses *= inflationMultiplier;
+    if (deferredActivated) {
+      deferredExpenses *= inflationMultiplier;
+    }
   }
 
   return results;
@@ -119,3 +144,48 @@ export function findEarliestRetirementAge(
 
   return null;
 }
+export const SAFE_RETIREMENT_EXPENSE_MULTIPLIER = 10;
+
+function getAnnualExpensesForProjectionRow(row: ProjectionYear): number {
+  const fraction = row.isPartialYear ? row.partialMonths / 12 : 1;
+  return row.expenses / fraction;
+}
+
+export function getSafeRetirementThresholdAtDeath(
+  config: RetirementConfigInput
+): number {
+  const projection = projectNetWorth(config);
+  const endPoint = projection[projection.length - 1];
+  const annualExpensesAtDeath = getAnnualExpensesForProjectionRow(endPoint);
+  return SAFE_RETIREMENT_EXPENSE_MULTIPLIER * annualExpensesAtDeath;
+}
+
+export function isProjectionSafelyRetired(config: RetirementConfigInput): boolean {
+  if (!isProjectionSolvent(config)) {
+    return false;
+  }
+
+  const projection = projectNetWorth(config);
+  const endPoint = projection[projection.length - 1];
+  const threshold = getSafeRetirementThresholdAtDeath(config);
+  return endPoint.netWorth >= threshold;
+}
+
+export function findSafeRetirementAge(
+  config: RetirementConfigInput
+): number | null {
+  const minRetirementAge = config.currentAgeYears;
+
+  for (
+    let retirementAge = minRetirementAge;
+    retirementAge <= config.lifeExpectancy;
+    retirementAge += 1
+  ) {
+    if (isProjectionSafelyRetired({ ...config, retirementAge })) {
+      return retirementAge;
+    }
+  }
+
+  return null;
+}
+

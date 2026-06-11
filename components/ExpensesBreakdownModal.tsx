@@ -5,10 +5,12 @@ import { MoneyInput } from "@/components/MoneyInput";
 import {
   RECURRING_MONTHLY_EXPENSE_MONTH,
   YEARLY_EXPENSE_MONTH,
+  calculateActiveExpenseYearlySum,
   calculateExpenseBreakdownTotals,
   getMonthName,
   getRecurringMonthlyExpenseAmount,
   getYearlyExpenseAmount,
+  hasOptionalExpenseRows,
   normalizeExpenseBreakdown,
   normalizeMonthlyExpenseBreakdown,
 } from "@/lib/expenses";
@@ -19,13 +21,19 @@ import type { ExpenseMonthInput } from "@/lib/types";
 type ExpensesBreakdownModalProps = {
   isOpen: boolean;
   months: ExpenseMonthInput[];
+  optionalExpensesStartAfterYears?: number;
   onClose: () => void;
-  onApply: (months: ExpenseMonthInput[], yearlySum: number) => void;
+  onApply: (
+    months: ExpenseMonthInput[],
+    yearlySum: number,
+    optionalExpensesStartAfterYears?: number
+  ) => void;
 };
 
 export function ExpensesBreakdownModal({
   isOpen,
   months,
+  optionalExpensesStartAfterYears,
   onClose,
   onApply,
 }: ExpensesBreakdownModalProps) {
@@ -34,14 +42,20 @@ export function ExpensesBreakdownModal({
   );
   const [yearlyExpense, setYearlyExpense] = useState(0);
   const [recurringMonthlyExpense, setRecurringMonthlyExpense] = useState(0);
+  const [startAfterYearsInput, setStartAfterYearsInput] = useState("");
 
   useEffect(() => {
     if (isOpen) {
       setDraftMonths(normalizeMonthlyExpenseBreakdown(months));
       setYearlyExpense(getYearlyExpenseAmount(months));
       setRecurringMonthlyExpense(getRecurringMonthlyExpenseAmount(months));
+      setStartAfterYearsInput(
+        optionalExpensesStartAfterYears && optionalExpensesStartAfterYears > 0
+          ? String(optionalExpensesStartAfterYears)
+          : ""
+      );
     }
-  }, [isOpen, months]);
+  }, [isOpen, months, optionalExpensesStartAfterYears]);
 
   const draftItems = useMemo(() => {
     const extras: ExpenseMonthInput[] = [];
@@ -60,12 +74,35 @@ export function ExpensesBreakdownModal({
     return normalizeExpenseBreakdown([...draftMonths, ...extras]);
   }, [draftMonths, yearlyExpense, recurringMonthlyExpense]);
 
+  const parsedStartAfterYears = useMemo(() => {
+    const trimmed = startAfterYearsInput.trim();
+    if (!trimmed) {
+      return undefined;
+    }
+
+    const parsed = Number(trimmed);
+    if (!Number.isFinite(parsed) || parsed < 0 || !Number.isInteger(parsed)) {
+      return undefined;
+    }
+
+    return parsed;
+  }, [startAfterYearsInput]);
+
   const {
     yearlySum,
     monthlyAvg,
     monthlyYearlySum,
     recurringMonthlyYearly,
+    deferredYearlySum,
   } = useMemo(() => calculateExpenseBreakdownTotals(draftItems), [draftItems]);
+
+  const activeYearlySum = useMemo(
+    () =>
+      calculateActiveExpenseYearlySum(draftItems, parsedStartAfterYears),
+    [draftItems, parsedStartAfterYears]
+  );
+
+  const showOptionalDeferral = hasOptionalExpenseRows(draftItems);
 
   if (!isOpen) {
     return null;
@@ -78,7 +115,11 @@ export function ExpensesBreakdownModal({
   }
 
   function handleApply() {
-    onApply(draftItems, roundMoney(yearlySum));
+    onApply(
+      draftItems,
+      roundMoney(activeYearlySum),
+      parsedStartAfterYears
+    );
     onClose();
   }
 
@@ -170,13 +211,35 @@ export function ExpensesBreakdownModal({
                 className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
               />
             </div>
+
+            {showOptionalDeferral ? (
+              <div className="grid grid-cols-[1fr_160px] gap-3 items-center">
+                <div>
+                  <span className="text-sm font-medium text-zinc-800">
+                    Start optional expenses after (years)
+                  </span>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Applies to the optional monthly and yearly rows above. Leave blank to include them now.
+                  </p>
+                </div>
+                <input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={startAfterYearsInput}
+                  onChange={(event) => setStartAfterYearsInput(event.target.value)}
+                  placeholder="Now"
+                  className="rounded-lg border border-zinc-300 px-3 py-2 text-sm"
+                />
+              </div>
+            ) : null}
           </div>
         </div>
 
         <div className="shrink-0 border-t border-zinc-100 bg-white px-6 py-4">
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg bg-zinc-50 px-4 py-3">
-              <span className="block text-sm font-medium text-zinc-700">Yearly sum</span>
+              <span className="block text-sm font-medium text-zinc-700">Yearly sum (when all active)</span>
               <span className="mt-1 block text-lg font-semibold text-zinc-900">
                 {formatMoneyDisplay(yearlySum)}
               </span>
@@ -192,12 +255,14 @@ export function ExpensesBreakdownModal({
               ) : null}
             </div>
             <div className="rounded-lg bg-zinc-50 px-4 py-3">
-              <span className="block text-sm font-medium text-zinc-700">Monthly average</span>
+              <span className="block text-sm font-medium text-zinc-700">Active now</span>
               <span className="mt-1 block text-lg font-semibold text-zinc-900">
-                {formatMoneyDisplay(monthlyAvg)}
+                {formatMoneyDisplay(activeYearlySum)}
               </span>
               <span className="mt-1 block text-xs text-zinc-500">
-                Based on calendar months totaling {formatMoneyDisplay(monthlyYearlySum)}
+                {parsedStartAfterYears && parsedStartAfterYears > 0 && deferredYearlySum > 0
+                  ? `Optional expenses of ${formatMoneyDisplay(deferredYearlySum)} begin in ${parsedStartAfterYears} year${parsedStartAfterYears === 1 ? "" : "s"}`
+                  : `Based on calendar months totaling ${formatMoneyDisplay(monthlyYearlySum)}`}
               </span>
             </div>
           </div>

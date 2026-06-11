@@ -2,6 +2,8 @@ import { ConfigList } from "@/components/ConfigList";
 import { getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { listConfigurations } from "@/lib/queries";
 
+export const dynamic = "force-dynamic";
+
 export default async function HomePage() {
   const items = (await listConfigurations())
     .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: "base" }))

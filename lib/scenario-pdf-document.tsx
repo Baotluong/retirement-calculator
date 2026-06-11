@@ -1,4 +1,4 @@
-﻿import {
+import {
   Document,
   Page,
   StyleSheet,
@@ -194,6 +194,12 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
             </Text>
           </View>
           <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Safe retirement age</Text>
+            <Text style={styles.summaryValue}>
+              {summary.safeRetirementAge === null ? "-" : String(summary.safeRetirementAge)}
+            </Text>
+          </View>
+          <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Net worth at retirement</Text>
             <Text style={styles.summaryValue}>{formatCurrency(summary.netWorthAtRetirement)}</Text>
           </View>
@@ -236,6 +242,14 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
           }
         />
         <AssumptionRow
+          label="Safe retirement age"
+          value={
+            configuration.safeRetirementAge === null
+              ? "-"
+              : String(configuration.safeRetirementAge)
+          }
+        />
+        <AssumptionRow
           label="Current net worth"
           value={formatCurrency(configuration.currentNetWorth)}
         />
@@ -270,3 +284,4 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
     </Document>
   );
 }
+

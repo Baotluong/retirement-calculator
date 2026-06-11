@@ -1,4 +1,4 @@
-﻿import { findEarliestRetirementAge } from "./projection";
+﻿import { findEarliestRetirementAge, findSafeRetirementAge } from "./projection";
 import type { RetirementConfigInput } from "./types";
 
 type RetirementCalcValidation = {
@@ -76,6 +76,25 @@ export function validateRetirementCalculation(
 }
 
 
+export type RetirementAgesPreview = {
+  earliestRetirementAge: number | null;
+  safeRetirementAge: number | null;
+};
+
+export function computeRetirementAgesPreview(
+  form: RetirementConfigInput
+): RetirementAgesPreview {
+  const validation = validateRetirementCalculation(form);
+  if (!validation.ready) {
+    return { earliestRetirementAge: null, safeRetirementAge: null };
+  }
+
+  return {
+    earliestRetirementAge: findEarliestRetirementAge(form),
+    safeRetirementAge: findSafeRetirementAge(form),
+  };
+}
+
 export function computeEarliestRetirementAge(
   form: RetirementConfigInput
 ): number | null {
@@ -86,3 +105,14 @@ export function computeEarliestRetirementAge(
 
   return findEarliestRetirementAge(form);
 }
+export function computeSafeRetirementAge(
+  form: RetirementConfigInput
+): number | null {
+  const validation = validateRetirementCalculation(form);
+  if (!validation.ready) {
+    return null;
+  }
+
+  return findSafeRetirementAge(form);
+}
+

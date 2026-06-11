@@ -1,5 +1,6 @@
 import { InfoTooltip } from "@/components/InfoTooltip";
 import {
+  formatSafeRetirementAgeTooltip,
   formatScenarioCurrency,
   scenarioSummaryTooltips,
   type ScenarioSummaryStats,
@@ -47,18 +48,28 @@ export function ScenarioSummaryStatsGrid({
   stats,
   compact = false,
 }: ScenarioSummaryStatsGridProps) {
+  const safeRetirementTooltip = formatSafeRetirementAgeTooltip(
+    stats.safeRetirementAmount
+  );
+
   return (
     <dl
       className={
         compact
-          ? "grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3"
-          : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5"
+          ? "grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3 lg:grid-cols-6"
+          : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
       }
     >
       <StatItem
         label="Earliest retirement age"
-        value={stats.earliestRetirementAge === null ? "—" : String(stats.earliestRetirementAge)}
+        value={stats.earliestRetirementAge === null ? "-" : String(stats.earliestRetirementAge)}
         tooltip={scenarioSummaryTooltips.earliestRetirementAge}
+        compact={compact}
+      />
+      <StatItem
+        label="Safe retirement age"
+        value={stats.safeRetirementAge === null ? "-" : String(stats.safeRetirementAge)}
+        tooltip={safeRetirementTooltip}
         compact={compact}
       />
       <StatItem
