@@ -1,4 +1,4 @@
-import {
+﻿import {
   Document,
   Page,
   StyleSheet,
@@ -6,12 +6,13 @@ import {
   View,
 } from "@react-pdf/renderer";
 import { formatCurrentAge } from "@/lib/age";
-import { formatScenarioCurrency, type ScenarioSummaryStats } from "@/lib/scenario-summary";
+import { formatScenarioCurrency, type RetirementAgeProjectionStats, type ScenarioRetirementAgeDetails, type ScenarioSummaryStats } from "@/lib/scenario-summary";
 import type { ProjectionYear, RetirementConfig } from "@/lib/types";
 
 export type ScenarioPdfReportData = {
   configuration: RetirementConfig;
   summary: ScenarioSummaryStats;
+  retirementAgeDetails: ScenarioRetirementAgeDetails;
   projection: ProjectionYear[];
 };
 
@@ -164,8 +165,40 @@ function ProjectionTableRows({ rows }: { rows: ProjectionYear[] }) {
   );
 }
 
+
+function formatRetirementAgeStats(stats: RetirementAgeProjectionStats | null): string[] {
+  if (!stats) {
+    return ["-", "-", "-"];
+  }
+
+  return [
+    formatCurrency(stats.netWorthAtRetirement),
+    formatCurrency(stats.peakNetWorth),
+    formatCurrency(stats.endingNetWorth),
+  ];
+}
+
+function RetirementAgePdfGroup({
+  title,
+  stats,
+}: {
+  title: string;
+  stats: RetirementAgeProjectionStats | null;
+}) {
+  const [atRetirement, peak, ending] = formatRetirementAgeStats(stats);
+  const heading = stats ? title + " (" + stats.retirementAge + ")" : title;
+
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", marginBottom: 4 }}>{heading}</Text>
+      <AssumptionRow label="Net worth at retirement" value={atRetirement} />
+      <AssumptionRow label="Peak net worth" value={peak} />
+      <AssumptionRow label="Ending net worth" value={ending} />
+    </View>
+  );
+}
 export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData }) {
-  const { configuration, summary, projection } = report;
+  const { configuration, summary, retirementAgeDetails, projection } = report;
   const projectionChunks = chunkProjection(projection);
 
   return (
@@ -218,6 +251,10 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
             <Text style={styles.summaryValue}>{formatCurrency(summary.annualContributions)}</Text>
           </View>
         </View>
+
+        <Text style={styles.sectionTitle}>Retirement age projections</Text>
+        <RetirementAgePdfGroup title="Earliest retirement age" stats={retirementAgeDetails.earliest} />
+        <RetirementAgePdfGroup title="Safe retirement age" stats={retirementAgeDetails.safe} />
 
         <Text style={styles.sectionTitle}>Assumptions</Text>
         <AssumptionRow label="Scenario name" value={configuration.name} />
@@ -284,4 +321,6 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
     </Document>
   );
 }
+
+
 

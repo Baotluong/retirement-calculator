@@ -1,37 +1,20 @@
 ﻿import { notFound } from "next/navigation";
 import { CompareProjectionChart } from "@/components/CompareProjectionChart";
+import { CompareRetirementAgeStatsTable } from "@/components/CompareRetirementAgeStatsTable";
 import { CompareStatsTable } from "@/components/CompareStatsTable";
 import { PrintToolbar } from "@/components/PrintToolbar";
+import { parseCompareIds } from "@/lib/compare-params";
 import { getConfiguration } from "@/lib/queries";
-import { getScenarioSummaryStats } from "@/lib/scenario-summary";
+import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { projectNetWorth } from "@/lib/projection";
 
 type PageProps = {
-  searchParams: Promise<{ ids?: string }>;
+  searchParams: Promise<{ ids?: string | string[] }>;
 };
-
-const MIN_COMPARE = 2;
-const MAX_COMPARE = 4;
-
-function parseIds(raw: string | undefined): number[] | null {
-  if (!raw?.trim()) return null;
-
-  const ids = raw
-    .split(",")
-    .map((part) => Number(part.trim()))
-    .filter((id) => Number.isInteger(id) && id > 0);
-
-  const unique = Array.from(new Set(ids));
-  if (unique.length < MIN_COMPARE || unique.length > MAX_COMPARE) {
-    return null;
-  }
-
-  return unique;
-}
 
 export default async function ComparePrintPage({ searchParams }: PageProps) {
   const { ids: idsParam } = await searchParams;
-  const ids = parseIds(idsParam);
+  const ids = parseCompareIds(idsParam);
 
   if (!ids) {
     notFound();
@@ -47,6 +30,7 @@ export default async function ComparePrintPage({ searchParams }: PageProps) {
     return {
       name: safeConfig.name,
       stats: getScenarioSummaryStats(safeConfig),
+      retirementAgeDetails: getScenarioRetirementAgeDetails(safeConfig),
       projection: projectNetWorth(safeConfig),
     };
   });
@@ -73,6 +57,19 @@ export default async function ComparePrintPage({ searchParams }: PageProps) {
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-zinc-900">Summary comparison</h2>
         <CompareStatsTable scenarios={scenarios.map(({ name, stats }) => ({ name, stats }))} />
+      </section>
+
+      <section className="space-y-3 print-break-before">
+        <h2 className="text-lg font-semibold text-zinc-900">Retirement age projections</h2>
+        <p className="text-sm text-zinc-600">
+          Net worth if each scenario retires at its earliest sustainable age or safe retirement age.
+        </p>
+        <CompareRetirementAgeStatsTable
+          scenarios={scenarios.map(({ name, retirementAgeDetails }) => ({
+            name,
+            details: retirementAgeDetails,
+          }))}
+        />
       </section>
 
       <section className="space-y-3 print-break-before">

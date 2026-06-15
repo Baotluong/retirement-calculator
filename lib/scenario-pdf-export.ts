@@ -2,7 +2,7 @@
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import JSZip from "jszip";
 import { projectNetWorth } from "@/lib/projection";
-import { getScenarioSummaryStats } from "@/lib/scenario-summary";
+import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { ScenarioPdfDocument, type ScenarioPdfReportData } from "@/lib/scenario-pdf-document";
 import type { RetirementConfig } from "@/lib/types";
 
@@ -53,6 +53,7 @@ export function buildScenarioPdfReport(configuration: RetirementConfig): Scenari
   return {
     configuration,
     summary: getScenarioSummaryStats(configuration),
+    retirementAgeDetails: getScenarioRetirementAgeDetails(configuration),
     projection: projectNetWorth(configuration),
   };
 }
@@ -81,5 +82,6 @@ export async function buildScenarioReportsZip(
   const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
   return zipBuffer;
 }
+
 
 

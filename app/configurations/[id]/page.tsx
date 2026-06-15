@@ -1,4 +1,4 @@
-import Link from "next/link";
+﻿import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfigForm } from "@/components/ConfigForm";
 import { DeleteScenarioButton } from "@/components/DeleteScenarioButton";
@@ -6,9 +6,10 @@ import { ExportPdfButton } from "@/components/ExportPdfButton";
 import { ProjectionChart } from "@/components/ProjectionChart";
 import { ScenarioSummaryCards } from "@/components/ScenarioSummaryCards";
 import { ProjectionTable } from "@/components/ProjectionTable";
+import { RetirementAgeStatsSection } from "@/components/RetirementAgeStatsSection";
 import { formatCurrentAge } from "@/lib/age";
 import { getConfiguration, getLatestExpenseBreakdown, getLatestNetWorthItems } from "@/lib/queries";
-import { getScenarioSummaryStats } from "@/lib/scenario-summary";
+import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { projectNetWorth } from "@/lib/projection";
 
 type PageProps = {
@@ -40,6 +41,7 @@ export default async function ConfigurationPage({ params }: PageProps) {
       : await getLatestExpenseBreakdown();
   const projection = projectNetWorth(configuration);
   const summary = getScenarioSummaryStats(configuration);
+  const retirementAgeDetails = getScenarioRetirementAgeDetails(configuration);
 
   return (
     <div className="space-y-8">
@@ -84,6 +86,8 @@ export default async function ConfigurationPage({ params }: PageProps) {
 
       <ScenarioSummaryCards {...summary} />
 
+      <RetirementAgeStatsSection details={retirementAgeDetails} />
+
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Edit assumptions</h2>
         <ConfigForm
@@ -105,3 +109,4 @@ export default async function ConfigurationPage({ params }: PageProps) {
     </div>
   );
 }
+

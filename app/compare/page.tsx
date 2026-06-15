@@ -2,10 +2,11 @@
 import { ExportComparePdfButton } from "@/components/ExportComparePdfButton";
 import { notFound } from "next/navigation";
 import { CompareProjectionChart } from "@/components/CompareProjectionChart";
+import { CompareRetirementAgeStatsTable } from "@/components/CompareRetirementAgeStatsTable";
 import { CompareStatsTable } from "@/components/CompareStatsTable";
 import { parseCompareIds } from "@/lib/compare-params";
 import { getConfiguration } from "@/lib/queries";
-import { getScenarioSummaryStats } from "@/lib/scenario-summary";
+import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { projectNetWorth } from "@/lib/projection";
 
 type PageProps = {
@@ -30,6 +31,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
     return {
       name: safeConfig.name,
       stats: getScenarioSummaryStats(safeConfig),
+      retirementAgeDetails: getScenarioRetirementAgeDetails(safeConfig),
       projection: projectNetWorth(safeConfig),
     };
   });
@@ -55,6 +57,19 @@ export default async function ComparePage({ searchParams }: PageProps) {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Summary comparison</h2>
         <CompareStatsTable scenarios={scenarios.map(({ name, stats }) => ({ name, stats }))} />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="text-xl font-semibold">Retirement age projections</h2>
+        <p className="text-sm text-zinc-600">
+          Net worth if each scenario retires at its earliest sustainable age or safe retirement age.
+        </p>
+        <CompareRetirementAgeStatsTable
+          scenarios={scenarios.map(({ name, retirementAgeDetails }) => ({
+            name,
+            details: retirementAgeDetails,
+          }))}
+        />
       </section>
 
       <section className="space-y-3">

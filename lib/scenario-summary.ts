@@ -1,5 +1,17 @@
-import { getSafeRetirementThresholdAtDeath, projectNetWorth, SAFE_RETIREMENT_EXPENSE_MULTIPLIER } from "@/lib/projection";
+﻿import { getSafeRetirementThresholdAtDeath, projectNetWorth, SAFE_RETIREMENT_EXPENSE_MULTIPLIER } from "@/lib/projection";
 import type { RetirementConfig } from "@/lib/types";
+
+export type RetirementAgeProjectionStats = {
+  retirementAge: number;
+  netWorthAtRetirement: number;
+  peakNetWorth: number;
+  endingNetWorth: number;
+};
+
+export type ScenarioRetirementAgeDetails = {
+  earliest: RetirementAgeProjectionStats | null;
+  safe: RetirementAgeProjectionStats | null;
+};
 
 export type ScenarioSummaryStats = {
   earliestRetirementAge: number | null;
@@ -22,6 +34,12 @@ export const scenarioSummaryTooltips = {
     "Post-tax income you bring home each year while working. Not inflated over time in this scenario.",
   annualContributions:
     "Annual takehome minus annual expenses while working - what you save or invest each year before retirement.",
+  retirementAgeNetWorth:
+    "Projected net worth in the year you retire at this age, assuming you stop working then.",
+  retirementAgePeakNetWorth:
+    "Highest projected net worth from now through life expectancy if you retire at this age.",
+  retirementAgeEndingNetWorth:
+    "Projected net worth at life expectancy if you retire at this age.",
 } as const;
 
 export function formatSafeRetirementAgeTooltip(
@@ -35,6 +53,47 @@ export function formatSafeRetirementAgeTooltip(
   }
 
   return `${base} For this scenario, the required minimum is ${formatScenarioCurrency(safeAmount)}. Recalculated when you save.`;
+}
+
+export function getRetirementAgeProjectionStats(
+  config: RetirementConfig,
+  retirementAge: number | null
+): RetirementAgeProjectionStats | null {
+  if (retirementAge === null) {
+    return null;
+  }
+
+  const projection = projectNetWorth({
+    ...config,
+    retirementAge,
+  });
+
+  if (projection.length === 0) {
+    return null;
+  }
+
+  const retirementPoint =
+    projection.find((row) => row.age === retirementAge) ??
+    projection[projection.length - 1];
+
+  return {
+    retirementAge,
+    netWorthAtRetirement: retirementPoint.netWorth,
+    peakNetWorth: Math.max(...projection.map((row) => row.netWorth)),
+    endingNetWorth: projection[projection.length - 1].netWorth,
+  };
+}
+
+export function getScenarioRetirementAgeDetails(
+  config: RetirementConfig
+): ScenarioRetirementAgeDetails {
+  return {
+    earliest: getRetirementAgeProjectionStats(
+      config,
+      config.earliestRetirementAge
+    ),
+    safe: getRetirementAgeProjectionStats(config, config.safeRetirementAge),
+  };
 }
 
 export function getScenarioSummaryStats(

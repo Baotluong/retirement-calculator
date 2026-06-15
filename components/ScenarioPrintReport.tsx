@@ -1,9 +1,10 @@
 ﻿import { ConfigForm } from "@/components/ConfigForm";
 import { ProjectionChart } from "@/components/ProjectionChart";
 import { ProjectionTable } from "@/components/ProjectionTable";
+import { RetirementAgeStatsSection } from "@/components/RetirementAgeStatsSection";
 import { ScenarioSummaryCards } from "@/components/ScenarioSummaryCards";
 import { formatCurrentAge } from "@/lib/age";
-import { getScenarioSummaryStats } from "@/lib/scenario-summary";
+import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
 import { projectNetWorth } from "@/lib/projection";
 import type { ExpenseMonthInput, NetWorthItemInput, RetirementConfig } from "@/lib/types";
 
@@ -22,6 +23,7 @@ export function ScenarioPrintReport({
 }: ScenarioPrintReportProps) {
   const projection = projectNetWorth(configuration);
   const summary = getScenarioSummaryStats(configuration);
+  const retirementAgeDetails = getScenarioRetirementAgeDetails(configuration);
 
   return (
     <div className={(pageBreakBefore ? "print-break-before " : "") + "space-y-8"}>
@@ -46,6 +48,8 @@ export function ScenarioPrintReport({
         <ScenarioSummaryCards {...summary} />
       </section>
 
+      <RetirementAgeStatsSection details={retirementAgeDetails} />
+
       <section className="space-y-3">
         <h2 className="text-lg font-semibold text-zinc-900">Assumptions</h2>
         <ConfigForm
@@ -68,3 +72,4 @@ export function ScenarioPrintReport({
     </div>
   );
 }
+
