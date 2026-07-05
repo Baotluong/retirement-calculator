@@ -1,26 +1,20 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { MoneyInput } from "@/components/MoneyInput";
 import { formatMoneyDisplay } from "@/lib/money-format";
+import {
+  DEFAULT_TAKEHOME_CALCULATOR_STATE,
+  resolveTakehomeCalculatorState,
+  type TakehomeCalculatorState,
+  type TakehomeEstimateResult,
+} from "@/lib/takehome-calculator";
 import {
   US_STATE_OPTIONS,
   formatTakehomeLocation,
   getCitiesForState,
 } from "@/lib/takehome-cities";
 import type { TakehomeFilingStatus } from "@/lib/takehome-estimate";
-
-type TakehomeBreakdownLine = {
-  label: string;
-  amount: number;
-};
-
-type TakehomeEstimateResponse = {
-  takeHome: number;
-  breakdown: TakehomeBreakdownLine[];
-  source: "payrolltax" | "fallback";
-  fallbackReason?: string;
-};
 
 export type TakehomeApplyResult = {
   takeHome: number;
@@ -29,38 +23,75 @@ export type TakehomeApplyResult = {
 
 type TakehomeCalculatorModalProps = {
   isOpen: boolean;
+  configurationId: number | null;
+  savedState: TakehomeCalculatorState | null;
   onClose: () => void;
   onApply: (result: TakehomeApplyResult) => void;
+  onSaved: (state: TakehomeCalculatorState) => void;
 };
 
 export function TakehomeCalculatorModal({
   isOpen,
+  configurationId,
+  savedState,
   onClose,
   onApply,
+  onSaved,
 }: TakehomeCalculatorModalProps) {
-  const [grossSalary, setGrossSalary] = useState(120000);
-  const [filingStatus, setFilingStatus] = useState<TakehomeFilingStatus>("single");
-  const [state, setState] = useState("CA");
-  const [cityId, setCityId] = useState("");
-  const [estimate, setEstimate] = useState<TakehomeEstimateResponse | null>(null);
+  const [grossSalary, setGrossSalary] = useState(DEFAULT_TAKEHOME_CALCULATOR_STATE.grossSalary);
+  const [filingStatus, setFilingStatus] = useState<TakehomeFilingStatus>(
+    DEFAULT_TAKEHOME_CALCULATOR_STATE.filingStatus
+  );
+  const [state, setState] = useState(DEFAULT_TAKEHOME_CALCULATOR_STATE.state);
+  const [cityId, setCityId] = useState(DEFAULT_TAKEHOME_CALCULATOR_STATE.cityId);
+  const [estimate, setEstimate] = useState<TakehomeEstimateResult | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const cityOptions = useMemo(() => getCitiesForState(state), [state]);
 
   useEffect(() => {
-    if (!isOpen) return;
-    setEstimate(null);
+    if (!isOpen) {
+      return;
+    }
+
+    const resolved = resolveTakehomeCalculatorState(savedState);
+    setGrossSalary(resolved.grossSalary);
+    setFilingStatus(resolved.filingStatus);
+    setState(resolved.state);
+    setCityId(resolved.cityId);
+    setEstimate(resolved.estimate);
     setError(null);
     setLoading(false);
-  }, [isOpen]);
+  }, [isOpen, savedState]);
 
-  useEffect(() => {
-    setCityId("");
-  }, [state]);
+  function buildState(nextEstimate: TakehomeEstimateResult | null = estimate): TakehomeCalculatorState {
+    return {
+      grossSalary,
+      filingStatus,
+      state,
+      cityId,
+      estimate: nextEstimate,
+    };
+  }
 
-  if (!isOpen) {
-    return null;
+  async function persistState(nextEstimate: TakehomeEstimateResult | null = estimate) {
+    const nextState = buildState(nextEstimate);
+    onSaved(nextState);
+
+    if (!configurationId) {
+      return;
+    }
+
+    try {
+      await fetch("/api/configurations/" + configurationId + "/takehome-calculator", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(nextState),
+      });
+    } catch {
+      // Keep local state even if background save fails.
+    }
   }
 
   async function handleCalculate() {
@@ -87,25 +118,42 @@ export function TakehomeCalculatorModal({
             : "Unable to estimate take-home pay";
         setEstimate(null);
         setError(message);
+        await persistState(null);
         return;
       }
 
-      setEstimate(data as TakehomeEstimateResponse);
+      const nextEstimate = data as TakehomeEstimateResult;
+      setEstimate(nextEstimate);
+      await persistState(nextEstimate);
     } catch {
       setEstimate(null);
       setError("Unable to estimate take-home pay");
+      await persistState(null);
     } finally {
       setLoading(false);
     }
   }
 
-  function handleApply() {
-    if (!estimate) return;
+  async function handleApply() {
+    if (!estimate) {
+      return;
+    }
+
+    await persistState(estimate);
     onApply({
       takeHome: estimate.takeHome,
       location: formatTakehomeLocation(state, cityId || undefined),
     });
     onClose();
+  }
+
+  async function handleClose() {
+    await persistState();
+    onClose();
+  }
+
+  if (!isOpen) {
+    return null;
   }
 
   return (
@@ -114,7 +162,7 @@ export function TakehomeCalculatorModal({
         type="button"
         className="absolute inset-0 bg-zinc-900/40"
         aria-label="Close take-home calculator"
-        onClick={onClose}
+        onClick={handleClose}
       />
       <div className="relative z-10 flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-xl">
         <div className="shrink-0 border-b border-zinc-100 px-6 py-4">
@@ -127,7 +175,7 @@ export function TakehomeCalculatorModal({
             </div>
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800"
             >
               Close
@@ -135,7 +183,7 @@ export function TakehomeCalculatorModal({
           </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4 space-y-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 py-4">
           <label className="block">
             <span className="mb-1 block text-sm font-medium text-zinc-700">Gross annual salary</span>
             <MoneyInput
@@ -163,7 +211,10 @@ export function TakehomeCalculatorModal({
             <select
               className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm"
               value={state}
-              onChange={(e) => setState(e.target.value)}
+              onChange={(e) => {
+                setState(e.target.value);
+                setCityId("");
+              }}
             >
               {US_STATE_OPTIONS.map((option) => (
                 <option key={option.code} value={option.code}>
@@ -192,7 +243,8 @@ export function TakehomeCalculatorModal({
           ) : null}
 
           <p className="text-xs text-zinc-500">
-            Estimate only â€” not tax advice. Does not include 401(k), health insurance, or other pre-tax deductions.
+            Estimate only - not tax advice. Does not include 401(k), health insurance, or other
+            pre-tax deductions.
           </p>
 
           <button
@@ -213,7 +265,7 @@ export function TakehomeCalculatorModal({
           {error ? <p className="text-sm text-red-600">{error}</p> : null}
 
           {estimate ? (
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3 space-y-2">
+            <div className="space-y-2 rounded-lg border border-zinc-200 bg-zinc-50 px-4 py-3">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-zinc-700">Estimated annual take-home</span>
                 <span className="text-lg font-semibold text-zinc-900">
@@ -223,7 +275,10 @@ export function TakehomeCalculatorModal({
               {estimate.breakdown.length > 0 ? (
                 <div className="space-y-1 border-t border-zinc-200 pt-2">
                   {estimate.breakdown.map((line) => (
-                    <div key={line.label} className="flex items-center justify-between text-sm text-zinc-600">
+                    <div
+                      key={line.label}
+                      className="flex items-center justify-between text-sm text-zinc-600"
+                    >
                       <span>{line.label}</span>
                       <span>{formatMoneyDisplay(line.amount)}</span>
                     </div>
@@ -238,7 +293,7 @@ export function TakehomeCalculatorModal({
           <div className="flex justify-end gap-3">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleClose}
               className="rounded-lg border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50"
             >
               Cancel
@@ -257,4 +312,3 @@ export function TakehomeCalculatorModal({
     </div>
   );
 }
-

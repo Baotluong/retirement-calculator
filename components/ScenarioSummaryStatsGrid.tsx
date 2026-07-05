@@ -68,7 +68,7 @@ export function ScenarioSummaryStatsGrid({
       className={
         compact
           ? "grid min-w-0 grid-cols-2 gap-x-3 gap-y-3 sm:grid-cols-3"
-          : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6"
+          : "grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-7"
       }
     >
       <StatItem
@@ -83,6 +83,13 @@ export function ScenarioSummaryStatsGrid({
         shortLabel="Safe age"
         value={stats.safeRetirementAge === null ? "-" : String(stats.safeRetirementAge)}
         tooltip={safeRetirementTooltip}
+        compact={compact}
+      />
+      <StatItem
+        label="Coast FIRE age"
+        shortLabel="Coast age"
+        value={stats.coastFireAge === null ? "-" : String(stats.coastFireAge)}
+        tooltip={scenarioSummaryTooltips.coastFireAge}
         compact={compact}
       />
       <StatItem
@@ -116,3 +123,5 @@ export function ScenarioSummaryStatsGrid({
     </dl>
   );
 }
+
+

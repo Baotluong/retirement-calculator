@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
@@ -8,11 +8,17 @@ import { NetWorthCalculatorModal } from "@/components/NetWorthCalculatorModal";
 import { TakehomeCalculatorModal } from "@/components/TakehomeCalculatorModal";
 import { InfoTooltip } from "@/components/InfoTooltip";
 import { getSafeRetirementThresholdAtDeath } from "@/lib/projection";
-import { formatSafeRetirementAgeTooltip } from "@/lib/scenario-summary";
+import {
+  formatSafeRetirementAgeTooltip,
+  formatScenarioCurrency,
+  getCoastFireProjectionStats,
+  scenarioSummaryTooltips,
+} from "@/lib/scenario-summary";
 import { formatMoneyDisplay } from "@/lib/money-format";
 import { calculateActiveExpenseYearlySum, calculateExpenseBreakdownTotals, normalizeExpenseBreakdown } from "@/lib/expenses";
 import { calculateNetWorthSum, roundMoney } from "@/lib/net-worth";
 import { createClientId } from "@/lib/client-id";
+import type { TakehomeCalculatorState } from "@/lib/takehome-calculator";
 import type {
   ExpenseMonthInput,
   NetWorthItemInput,
@@ -44,6 +50,9 @@ const defaultValues: RetirementConfigInput = {
   inflationRate: 0.033,
   postRetirementExpenses: 0,
   optionalExpensesStartAfterYears: undefined,
+  incomeDelayMonths: undefined,
+  incomeIncreaseAfterYears: undefined,
+  incomeIncreaseGross: undefined,
 };
 
 function formatSaveError(error: unknown): string {
@@ -85,6 +94,9 @@ function toFormState(
     inflationRate: config.inflationRate,
     postRetirementExpenses: config.postRetirementExpenses,
     optionalExpensesStartAfterYears: config.optionalExpensesStartAfterYears,
+    incomeDelayMonths: config.incomeDelayMonths,
+    incomeIncreaseAfterYears: config.incomeIncreaseAfterYears,
+    incomeIncreaseGross: config.incomeIncreaseGross,
   };
 }
 
@@ -135,9 +147,13 @@ export function ConfigForm({
   );
   const [expensesModalOpen, setExpensesModalOpen] = useState(false);
   const [takehomeModalOpen, setTakehomeModalOpen] = useState(false);
+  const [takehomeCalculator, setTakehomeCalculator] = useState<TakehomeCalculatorState | null>(
+    initialValues?.takehomeCalculator ?? null
+  );
   const [previewAges, setPreviewAges] = useState<{
     earliestRetirementAge: number | null;
     safeRetirementAge: number | null;
+    coastFireAge: number | null;
   } | null>(null);
   const [previewing, setPreviewing] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
@@ -182,6 +198,7 @@ export function ConfigForm({
         netWorthBreakdown: toBreakdownPayload(netWorthRows),
         expenseBreakdown: expenseMonths,
         optionalExpensesStartAfterYears: form.optionalExpensesStartAfterYears,
+        takehomeCalculator,
       };
 
       const url = isEditing
@@ -222,6 +239,8 @@ export function ConfigForm({
 
   const displayedEarliestRetirementAge =
     previewAges?.earliestRetirementAge ?? initialValues?.earliestRetirementAge ?? null;
+  const displayedCoastFireAge =
+    previewAges?.coastFireAge ?? initialValues?.coastFireAge ?? null;
   const displayedSafeRetirementAge =
     previewAges?.safeRetirementAge ?? initialValues?.safeRetirementAge ?? null;
   const safeRetirementAmount =
@@ -233,6 +252,24 @@ export function ConfigForm({
         })
       : null;
   const safeRetirementTooltip = formatSafeRetirementAgeTooltip(safeRetirementAmount);
+  const displayedCoastFireNetWorth =
+    displayedCoastFireAge !== null
+      ? getCoastFireProjectionStats(
+          {
+            ...form,
+            id: initialValues?.id ?? 0,
+            createdAt: initialValues?.createdAt ?? "",
+            earliestRetirementAge: displayedEarliestRetirementAge,
+            safeRetirementAge: displayedSafeRetirementAge,
+            coastFireAge: displayedCoastFireAge,
+            isFavorite: initialValues?.isFavorite ?? false,
+            takehomeCalculator,
+            expenseBreakdown: expenseMonths,
+            netWorthBreakdown: toBreakdownPayload(netWorthRows),
+          },
+          displayedCoastFireAge
+        )?.netWorthAtRetirement ?? null
+      : null;
   const previewHelperText = previewAges
     ? "Preview from current form values (not saved)."
     : undefined;
@@ -262,6 +299,7 @@ export function ConfigForm({
       setPreviewAges({
         earliestRetirementAge: data.earliestRetirementAge ?? null,
         safeRetirementAge: data.safeRetirementAge ?? null,
+        coastFireAge: data.coastFireAge ?? null,
       });
     } catch {
       setPreviewError("Failed to preview retirement ages");
@@ -388,6 +426,59 @@ export function ConfigForm({
             ) : null}
           </div>
 
+          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 space-y-4">
+            <div>
+              <p className="text-sm font-medium text-zinc-800">Income timing and raises</p>
+              <p className="mt-1 text-xs text-zinc-500">
+                Model a job search gap before income starts, or a future gross raise with taxes
+                re-estimated from your take-home calculator settings.
+              </p>
+            </div>
+            <NumberField
+              label="Income delay (months)"
+              value={form.incomeDelayMonths ?? 0}
+              onChange={(value) =>
+                updateField("incomeDelayMonths", value > 0 ? value : undefined)
+              }
+              min={0}
+              max={600}
+              readOnly={readOnly}
+              fieldClass={fieldClass}
+            />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <NumberField
+                label="Raise after (years)"
+                value={form.incomeIncreaseAfterYears ?? 0}
+                onChange={(value) =>
+                  updateField("incomeIncreaseAfterYears", value > 0 ? value : undefined)
+                }
+                min={0}
+                max={80}
+                readOnly={readOnly}
+                fieldClass={fieldClass}
+              />
+              <MoneyField
+                label="Raise amount (gross, pre-tax)"
+                value={form.incomeIncreaseGross}
+                onChange={(value) =>
+                  updateField(
+                    "incomeIncreaseGross",
+                    value != null && value > 0 ? value : undefined
+                  )
+                }
+                optional
+                min={0}
+                readOnly={readOnly}
+              />
+            </div>
+            {!readOnly &&
+            (form.incomeIncreaseGross ?? 0) > 0 &&
+            !takehomeCalculator?.grossSalary ? (
+              <p className="text-xs text-amber-700">
+                Use the take-home calculator for more accurate tax adjustment on raises.
+              </p>
+            ) : null}
+          </div>
           <div className="block">
             <span className="mb-1 block text-sm font-medium text-zinc-700">Annual expenses</span>
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -438,6 +529,7 @@ export function ConfigForm({
             label="Investment return"
             value={form.investmentReturnRate}
             onChange={(v) => updateField("investmentReturnRate", v)}
+            decimals={3}
             readOnly={readOnly}
             fieldClass={fieldClass}
           />
@@ -485,6 +577,42 @@ export function ConfigForm({
                 : previewHelperText ??
                   (initialValues || prefill
                     ? displayedSafeRetirementAge === null
+                      ? "Unable to calculate with the current assumptions."
+                      : "Recalculated automatically whenever you save."
+                    : "Calculated automatically when you save or preview.")
+            }
+          />
+
+          <ReadOnlyAgeField
+            label="Coast FIRE age"
+            value={displayedCoastFireAge}
+            tooltip={scenarioSummaryTooltips.coastFireAge}
+            helperText={
+              readOnly
+                ? undefined
+                : previewHelperText ??
+                  (initialValues || prefill
+                    ? displayedCoastFireAge === null
+                      ? "Unable to calculate with the current assumptions."
+                      : "Recalculated automatically whenever you save."
+                    : "Calculated automatically when you save or preview.")
+            }
+          />
+
+          <ReadOnlyDisplayField
+            label="Coast FIRE net worth"
+            value={
+              displayedCoastFireNetWorth === null
+                ? "-"
+                : formatScenarioCurrency(displayedCoastFireNetWorth)
+            }
+            tooltip={scenarioSummaryTooltips.coastFireNetWorth}
+            helperText={
+              readOnly
+                ? undefined
+                : previewHelperText ??
+                  (initialValues || prefill
+                    ? displayedCoastFireNetWorth === null
                       ? "Unable to calculate with the current assumptions."
                       : "Recalculated automatically whenever you save."
                     : "Calculated automatically when you save or preview.")
@@ -555,7 +683,10 @@ export function ConfigForm({
 
           <TakehomeCalculatorModal
             isOpen={takehomeModalOpen}
+            configurationId={initialValues?.id ?? null}
+            savedState={takehomeCalculator}
             onClose={() => setTakehomeModalOpen(false)}
+            onSaved={setTakehomeCalculator}
             onApply={({ takeHome, location }) => {
               updateField("annualIncome", takeHome);
               updateField("location", location);
@@ -658,6 +789,24 @@ function ReadOnlyAgeField({ label, value, helperText, tooltip }: ReadOnlyAgeFiel
   const displayValue = value === null ? "-" : String(value);
 
   return (
+    <ReadOnlyDisplayField
+      label={label}
+      value={displayValue}
+      helperText={helperText}
+      tooltip={tooltip}
+    />
+  );
+}
+
+type ReadOnlyDisplayFieldProps = {
+  label: string;
+  value: string;
+  helperText?: string;
+  tooltip?: string;
+};
+
+function ReadOnlyDisplayField({ label, value, helperText, tooltip }: ReadOnlyDisplayFieldProps) {
+  return (
     <div className="block">
       <span className="mb-1 block text-sm font-medium text-zinc-700">
         <span className="inline-flex items-center gap-1.5">
@@ -666,7 +815,7 @@ function ReadOnlyAgeField({ label, value, helperText, tooltip }: ReadOnlyAgeFiel
         </span>
       </span>
       <div className="w-full rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2 text-zinc-800">
-        {displayValue}
+        {value}
       </div>
       {helperText ? (
         <span className="mt-1 block text-xs text-zinc-500">{helperText}</span>
@@ -674,6 +823,18 @@ function ReadOnlyAgeField({ label, value, helperText, tooltip }: ReadOnlyAgeFiel
     </div>
   );
 }
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

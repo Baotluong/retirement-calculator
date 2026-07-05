@@ -6,9 +6,15 @@ import {
   netWorthItems,
 } from "./schema";
 import { defaultExpenseBreakdown, normalizeExpenseBreakdown } from "./expenses";
-import { computeEarliestRetirementAge, computeSafeRetirementAge } from "./retirement-calc";
+import { computeCoastFireAge, computeEarliestRetirementAge, computeSafeRetirementAge } from "./retirement-calc";
 import { defaultNetWorthBreakdown } from "./net-worth";
+import {
+  parseTakehomeCalculatorFromRow,
+  takehomeCalculatorToRowValues,
+  type TakehomeCalculatorState,
+} from "./takehome-calculator";
 import type {
+  ConfigurationSaveInput,
   ExpenseMonthInput,
   NetWorthItemInput,
   RetirementConfig,
@@ -40,6 +46,8 @@ function toConfig(
     retirementAge: row.retirementAge,
     earliestRetirementAge: row.earliestRetirementAge ?? null,
     safeRetirementAge: row.safeRetirementAge ?? null,
+    coastFireAge: row.coastFireAge ?? null,
+    isFavorite: row.isFavorite === 1,
     lifeExpectancy: row.lifeExpectancy,
     currentNetWorth: row.currentNetWorth,
     annualIncome: row.annualIncome,
@@ -48,6 +56,10 @@ function toConfig(
     inflationRate: row.inflationRate,
     postRetirementExpenses: row.postRetirementExpenses ?? undefined,
     optionalExpensesStartAfterYears: row.optionalExpensesStartAfterYears ?? undefined,
+    incomeDelayMonths: row.incomeDelayMonths ?? undefined,
+    incomeIncreaseAfterYears: row.incomeIncreaseAfterYears ?? undefined,
+    incomeIncreaseGross: row.incomeIncreaseGross ?? undefined,
+    takehomeCalculator: parseTakehomeCalculatorFromRow(row),
     netWorthBreakdown,
     expenseBreakdown,
   };
@@ -59,6 +71,9 @@ function toCalculationInput(config: RetirementConfig): RetirementConfigInput {
     createdAt: _createdAt,
     earliestRetirementAge: _earliestRetirementAge,
     safeRetirementAge: _safeRetirementAge,
+    coastFireAge: _coastFireAge,
+    isFavorite: _isFavorite,
+    takehomeCalculator: _takehomeCalculator,
     netWorthBreakdown: _netWorthBreakdown,
     expenseBreakdown,
     ...input
@@ -75,6 +90,7 @@ function computeDerivedRowValues(config: RetirementConfig) {
 
   return {
     earliestRetirementAge: computeEarliestRetirementAge(input),
+    coastFireAge: computeCoastFireAge(input),
     safeRetirementAge: computeSafeRetirementAge(input),
   };
 }
@@ -90,10 +106,14 @@ function withCalculationBreakdown(
 }
 
 function toRowValues(
-  input: RetirementConfigInput,
+  input: ConfigurationSaveInput,
   expenseBreakdown?: ExpenseMonthInput[]
 ) {
   const calculationInput = withCalculationBreakdown(input, expenseBreakdown);
+  const takehomeRowValues =
+    input.takehomeCalculator !== undefined
+      ? takehomeCalculatorToRowValues(input.takehomeCalculator as TakehomeCalculatorState | null)
+      : {};
 
   return {
     name: input.name,
@@ -104,6 +124,7 @@ function toRowValues(
     retirementAge: input.retirementAge,
     earliestRetirementAge: computeEarliestRetirementAge(calculationInput),
     safeRetirementAge: computeSafeRetirementAge(calculationInput),
+    coastFireAge: computeCoastFireAge(calculationInput),
     lifeExpectancy: input.lifeExpectancy,
     currentNetWorth: input.currentNetWorth,
     annualIncome: input.annualIncome,
@@ -112,6 +133,10 @@ function toRowValues(
     inflationRate: input.inflationRate,
     postRetirementExpenses: input.postRetirementExpenses ?? null,
     optionalExpensesStartAfterYears: input.optionalExpensesStartAfterYears ?? null,
+    incomeDelayMonths: input.incomeDelayMonths ?? null,
+    incomeIncreaseAfterYears: input.incomeIncreaseAfterYears ?? null,
+    incomeIncreaseGross: input.incomeIncreaseGross ?? null,
+    ...takehomeRowValues,
   };
 }
 
@@ -326,6 +351,52 @@ export async function updateConfiguration(
   return toConfig(rows[0], savedNetWorth, savedExpense);
 }
 
+
+export async function setConfigurationFavorite(
+  id: number,
+  isFavorite: boolean
+): Promise<RetirementConfig | null> {
+  const rows = await db
+    .update(configurations)
+    .set({ isFavorite: isFavorite ? 1 : 0 })
+    .where(eq(configurations.id, id))
+    .returning();
+
+  if (rows[0]) {
+    return toConfig(
+      rows[0],
+      await getNetWorthItems(id),
+      await getExpenseBreakdownItems(id)
+    );
+  }
+
+  const configuration = await getConfiguration(id);
+  if (!configuration || configuration.isFavorite !== isFavorite) {
+    return null;
+  }
+
+  return configuration;
+}
+export async function setConfigurationTakehomeCalculator(
+  id: number,
+  calculator: TakehomeCalculatorState
+): Promise<RetirementConfig | null> {
+  const rows = await db
+    .update(configurations)
+    .set(takehomeCalculatorToRowValues(calculator))
+    .where(eq(configurations.id, id))
+    .returning();
+
+  if (!rows[0]) {
+    return null;
+  }
+
+  return toConfig(
+    rows[0],
+    await getNetWorthItems(id),
+    await getExpenseBreakdownItems(id)
+  );
+}
 export async function deleteConfiguration(id: number): Promise<boolean> {
   await db.delete(netWorthItems).where(eq(netWorthItems.configurationId, id));
   await db
@@ -345,6 +416,8 @@ export type RecomputeDerivedFieldsScenarioResult = {
   changed: boolean;
   earliestRetirementAge: number | null;
   safeRetirementAge: number | null;
+  coastFireAge: number | null;
+  previousCoastFireAge: number | null;
   previousEarliestRetirementAge: number | null;
   previousSafeRetirementAge: number | null;
 };
@@ -365,7 +438,8 @@ export async function recomputeAllDerivedConfigurationFields(): Promise<Recomput
     const derived = computeDerivedRowValues(config);
     const changed =
       derived.earliestRetirementAge !== config.earliestRetirementAge ||
-      derived.safeRetirementAge !== config.safeRetirementAge;
+      derived.safeRetirementAge !== config.safeRetirementAge ||
+      derived.coastFireAge !== config.coastFireAge;
 
     scenarios.push({
       id: config.id,
@@ -373,8 +447,10 @@ export async function recomputeAllDerivedConfigurationFields(): Promise<Recomput
       changed,
       earliestRetirementAge: derived.earliestRetirementAge,
       safeRetirementAge: derived.safeRetirementAge,
+      coastFireAge: derived.coastFireAge,
       previousEarliestRetirementAge: config.earliestRetirementAge,
       previousSafeRetirementAge: config.safeRetirementAge,
+      previousCoastFireAge: config.coastFireAge,
     });
 
     if (!changed) {
@@ -396,3 +472,6 @@ export async function recomputeAllDerivedConfigurationFields(): Promise<Recomput
     scenarios,
   };
 }
+
+
+

@@ -1,4 +1,4 @@
-import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
+﻿import { sqliteTable, integer, text, real } from "drizzle-orm/sqlite-core";
 
 export const configurations = sqliteTable("configurations", {
   id: integer("id").primaryKey({ autoIncrement: true }),
@@ -11,6 +11,8 @@ export const configurations = sqliteTable("configurations", {
   retirementAge: integer("retirement_age").notNull(),
   earliestRetirementAge: integer("earliest_retirement_age"),
   safeRetirementAge: integer("safe_retirement_age"),
+  coastFireAge: integer("coast_fire_age"),
+  isFavorite: integer("is_favorite").notNull().default(0),
   lifeExpectancy: integer("life_expectancy").notNull(),
   currentNetWorth: real("current_net_worth").notNull(),
   annualIncome: real("annual_income").notNull(),
@@ -19,6 +21,14 @@ export const configurations = sqliteTable("configurations", {
   inflationRate: real("inflation_rate").notNull(),
   postRetirementExpenses: real("post_retirement_expenses"),
   optionalExpensesStartAfterYears: integer("optional_expenses_start_after_years"),
+  takehomeGrossSalary: real("takehome_gross_salary"),
+  takehomeFilingStatus: text("takehome_filing_status"),
+  takehomeState: text("takehome_state"),
+  takehomeCityId: text("takehome_city_id"),
+  takehomeEstimateJson: text("takehome_estimate_json"),
+  incomeDelayMonths: integer("income_delay_months"),
+  incomeIncreaseAfterYears: integer("income_increase_after_years"),
+  incomeIncreaseGross: real("income_increase_gross"),
 });
 
 export const netWorthItems = sqliteTable("net_worth_items", {
@@ -36,4 +46,8 @@ export const expenseBreakdownItems = sqliteTable("expense_breakdown_items", {
   month: integer("month").notNull(),
   amount: real("amount").notNull(),
 });
+
+
+
+
 

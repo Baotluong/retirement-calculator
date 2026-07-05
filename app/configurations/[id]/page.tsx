@@ -1,16 +1,19 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ConfigForm } from "@/components/ConfigForm";
 import { DeleteScenarioButton } from "@/components/DeleteScenarioButton";
 import { ExportPdfButton } from "@/components/ExportPdfButton";
 import { ProjectionChart } from "@/components/ProjectionChart";
 import { ScenarioSummaryCards } from "@/components/ScenarioSummaryCards";
-import { ProjectionTable } from "@/components/ProjectionTable";
+import { ProjectionTabs } from "@/components/ProjectionTabs";
 import { RetirementAgeStatsSection } from "@/components/RetirementAgeStatsSection";
 import { formatCurrentAge } from "@/lib/age";
 import { getConfiguration, getLatestExpenseBreakdown, getLatestNetWorthItems } from "@/lib/queries";
-import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
-import { projectNetWorth } from "@/lib/projection";
+import {
+  getScenarioProjectionViews,
+  getScenarioRetirementAgeDetailsFromViews,
+  getScenarioSummaryStats,
+} from "@/lib/scenario-summary";
 
 type PageProps = {
   params: Promise<{ id: string }>;
@@ -39,9 +42,14 @@ export default async function ConfigurationPage({ params }: PageProps) {
     configuration.expenseBreakdown.some((item) => item.amount > 0)
       ? configuration.expenseBreakdown
       : await getLatestExpenseBreakdown();
-  const projection = projectNetWorth(configuration);
+  const projectionViews = getScenarioProjectionViews(configuration);
+  const planProjection =
+    projectionViews.find((view) => view.id === "plan")?.projection ?? [];
   const summary = getScenarioSummaryStats(configuration);
-  const retirementAgeDetails = getScenarioRetirementAgeDetails(configuration);
+  const retirementAgeDetails = getScenarioRetirementAgeDetailsFromViews(
+    projectionViews,
+    configuration
+  );
 
   return (
     <div className="space-y-8">
@@ -56,6 +64,9 @@ export default async function ConfigurationPage({ params }: PageProps) {
               : ""}
             {configuration.safeRetirementAge !== null
               ? ", safe retirement age " + configuration.safeRetirementAge
+              : ""}
+            {configuration.coastFireAge !== null
+              ? ", coast FIRE age " + configuration.coastFireAge
               : ""}
             .
           </p>
@@ -99,14 +110,13 @@ export default async function ConfigurationPage({ params }: PageProps) {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Projection chart</h2>
-        <ProjectionChart projection={projection} />
+        <ProjectionChart projection={planProjection} />
       </section>
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Year-by-year breakdown</h2>
-        <ProjectionTable projection={projection} />
+        <ProjectionTabs views={projectionViews} />
       </section>
     </div>
   );
 }
-

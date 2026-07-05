@@ -1,8 +1,11 @@
 ﻿import { createElement, type ReactElement } from "react";
 import { renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import JSZip from "jszip";
-import { projectNetWorth } from "@/lib/projection";
-import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
+import {
+  getScenarioProjectionViews,
+  getScenarioRetirementAgeDetailsFromViews,
+  getScenarioSummaryStats,
+} from "@/lib/scenario-summary";
 import { ScenarioPdfDocument, type ScenarioPdfReportData } from "@/lib/scenario-pdf-document";
 import type { RetirementConfig } from "@/lib/types";
 
@@ -50,11 +53,16 @@ function uniquePdfFilename(name: string, id: number, used: Set<string>): string 
 }
 
 export function buildScenarioPdfReport(configuration: RetirementConfig): ScenarioPdfReportData {
+  const projectionViews = getScenarioProjectionViews(configuration);
+
   return {
     configuration,
     summary: getScenarioSummaryStats(configuration),
-    retirementAgeDetails: getScenarioRetirementAgeDetails(configuration),
-    projection: projectNetWorth(configuration),
+    retirementAgeDetails: getScenarioRetirementAgeDetailsFromViews(
+      projectionViews,
+      configuration
+    ),
+    projectionViews,
   };
 }
 
@@ -82,6 +90,7 @@ export async function buildScenarioReportsZip(
   const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
   return zipBuffer;
 }
+
 
 
 

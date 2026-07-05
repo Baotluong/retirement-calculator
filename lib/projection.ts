@@ -1,5 +1,6 @@
-import { resolveExpenseProjectionParts } from "./expenses";
-import type { RetirementConfigInput, ProjectionYear } from "./types";
+﻿import { resolveExpenseProjectionParts } from "./expenses";
+import { resolvePeriodWorkingIncome, type IncomeProjectionConfig } from "./income-projection";
+import type { ProjectionYear } from "./types";
 
 function round(value: number): number {
   return Math.round(value * 100) / 100;
@@ -10,6 +11,10 @@ type ProjectionPeriod = {
   fraction: number;
   isPartialYear: boolean;
   partialMonths: number;
+};
+
+export type ProjectionOptions = {
+  coastFireAge?: number | null;
 };
 
 function getProjectionPeriods(
@@ -41,7 +46,11 @@ function getProjectionPeriods(
   return periods;
 }
 
-export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[] {
+export function projectNetWorth(
+  config: IncomeProjectionConfig,
+  options?: ProjectionOptions
+): ProjectionYear[] {
+  const coastFireAge = options?.coastFireAge ?? null;
   const results: ProjectionYear[] = [];
   const startYear = new Date().getFullYear();
   const periods = getProjectionPeriods(
@@ -50,7 +59,6 @@ export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[]
     config.lifeExpectancy
   );
   const postRetirementAdditional = config.postRetirementExpenses ?? 0;
-  const takehome = config.annualIncome;
 
   const expenseParts = resolveExpenseProjectionParts(config);
   const currentAgeDecimal = config.currentAgeYears + config.currentAgeMonths / 12;
@@ -80,7 +88,6 @@ export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[]
         deferredNominal * Math.pow(1 + config.inflationRate, startAfterYears);
     }
 
-    const periodIncome = isWorking ? takehome * period.fraction : 0;
     let periodExpenses = (baseExpenses + deferredExpenses) * period.fraction;
 
     if (!isWorking) {
@@ -90,6 +97,19 @@ export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[]
         Math.pow(1 + config.inflationRate, Math.max(0, yearsFromRetirement));
       periodExpenses += inflatedAdditional * period.fraction;
     }
+
+    const periodIncome = resolvePeriodWorkingIncome(
+      config,
+      periodStartAge,
+      period.targetAge,
+      period.fraction,
+      currentAgeDecimal,
+      period.isPartialYear,
+      period.partialMonths,
+      coastFireAge,
+      periodExpenses,
+      isWorking
+    );
 
     const contributions = periodIncome - periodExpenses;
     const balanceBeforeGrowth = netWorth + contributions;
@@ -122,13 +142,13 @@ export function projectNetWorth(config: RetirementConfigInput): ProjectionYear[]
   return results;
 }
 
-export function isProjectionSolvent(config: RetirementConfigInput): boolean {
+export function isProjectionSolvent(config: IncomeProjectionConfig): boolean {
   const projection = projectNetWorth(config);
   return projection.every((row) => row.netWorth >= 0);
 }
 
 export function findEarliestRetirementAge(
-  config: RetirementConfigInput
+  config: IncomeProjectionConfig
 ): number | null {
   const minRetirementAge = config.currentAgeYears;
 
@@ -144,6 +164,30 @@ export function findEarliestRetirementAge(
 
   return null;
 }
+
+export function isCoastProjectionSolvent(
+  config: IncomeProjectionConfig,
+  coastFireAge: number
+): boolean {
+  const projection = projectNetWorth(config, { coastFireAge });
+  return projection.every((row) => row.netWorth >= 0);
+}
+
+export function findCoastFireAge(config: IncomeProjectionConfig): number | null {
+  const maxCoastAge = config.retirementAge - 1;
+  if (maxCoastAge < config.currentAgeYears) {
+    return null;
+  }
+
+  for (let coastFireAge = config.currentAgeYears; coastFireAge <= maxCoastAge; coastFireAge += 1) {
+    if (isCoastProjectionSolvent(config, coastFireAge)) {
+      return coastFireAge;
+    }
+  }
+
+  return null;
+}
+
 export const SAFE_RETIREMENT_EXPENSE_MULTIPLIER = 10;
 
 function getAnnualExpensesForProjectionRow(row: ProjectionYear): number {
@@ -152,7 +196,7 @@ function getAnnualExpensesForProjectionRow(row: ProjectionYear): number {
 }
 
 export function getSafeRetirementThresholdAtDeath(
-  config: RetirementConfigInput
+  config: IncomeProjectionConfig
 ): number {
   const projection = projectNetWorth(config);
   const endPoint = projection[projection.length - 1];
@@ -160,7 +204,7 @@ export function getSafeRetirementThresholdAtDeath(
   return SAFE_RETIREMENT_EXPENSE_MULTIPLIER * annualExpensesAtDeath;
 }
 
-export function isProjectionSafelyRetired(config: RetirementConfigInput): boolean {
+export function isProjectionSafelyRetired(config: IncomeProjectionConfig): boolean {
   if (!isProjectionSolvent(config)) {
     return false;
   }
@@ -172,7 +216,7 @@ export function isProjectionSafelyRetired(config: RetirementConfigInput): boolea
 }
 
 export function findSafeRetirementAge(
-  config: RetirementConfigInput
+  config: IncomeProjectionConfig
 ): number | null {
   const minRetirementAge = config.currentAgeYears;
 
@@ -188,4 +232,5 @@ export function findSafeRetirementAge(
 
   return null;
 }
+
 

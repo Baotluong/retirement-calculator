@@ -1,4 +1,4 @@
-﻿import Link from "next/link";
+import Link from "next/link";
 import { ExportComparePdfButton } from "@/components/ExportComparePdfButton";
 import { notFound } from "next/navigation";
 import { CompareProjectionChart } from "@/components/CompareProjectionChart";
@@ -29,6 +29,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
   const scenarios = configurations.map((config) => {
     const safeConfig = config!;
     return {
+      id: safeConfig.id,
       name: safeConfig.name,
       stats: getScenarioSummaryStats(safeConfig),
       retirementAgeDetails: getScenarioRetirementAgeDetails(safeConfig),
@@ -56,7 +57,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
 
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Summary comparison</h2>
-        <CompareStatsTable scenarios={scenarios.map(({ name, stats }) => ({ name, stats }))} />
+        <CompareStatsTable scenarios={scenarios.map(({ id, name, stats }) => ({ id, name, stats }))} />
       </section>
 
       <section className="space-y-3">
@@ -65,7 +66,8 @@ export default async function ComparePage({ searchParams }: PageProps) {
           Net worth if each scenario retires at its earliest sustainable age or safe retirement age.
         </p>
         <CompareRetirementAgeStatsTable
-          scenarios={scenarios.map(({ name, retirementAgeDetails }) => ({
+          scenarios={scenarios.map(({ id, name, retirementAgeDetails }) => ({
+            id,
             name,
             details: retirementAgeDetails,
           }))}
@@ -75,7 +77,7 @@ export default async function ComparePage({ searchParams }: PageProps) {
       <section className="space-y-3">
         <h2 className="text-xl font-semibold">Net worth overlay</h2>
         <CompareProjectionChart
-          series={scenarios.map(({ name, projection }) => ({ name, projection }))}
+          series={scenarios.map(({ id, name, projection }) => ({ id, name, projection }))}
         />
       </section>
     </div>

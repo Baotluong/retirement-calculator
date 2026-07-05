@@ -1,10 +1,16 @@
-﻿import { NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import {
   deleteConfiguration,
   getConfiguration,
+  setConfigurationFavorite,
   updateConfiguration,
 } from "@/lib/queries";
 import { configurationSaveSchema } from "@/lib/types";
+import { z } from "zod";
+
+const favoritePatchSchema = z.object({
+  isFavorite: z.boolean(),
+});
 import { validateConfigAges } from "@/lib/validation";
 
 type RouteContext = {
@@ -73,6 +79,35 @@ export async function PUT(request: Request, context: RouteContext) {
   return NextResponse.json(configuration);
 }
 
+
+export async function PATCH(request: Request, context: RouteContext) {
+  const { id } = await context.params;
+  const configId = parseId(id);
+
+  if (!configId) {
+    return NextResponse.json({ error: "Invalid configuration id" }, { status: 400 });
+  }
+
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
+  }
+
+  const parsed = favoritePatchSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
+
+  const configuration = await setConfigurationFavorite(configId, parsed.data.isFavorite);
+
+  if (!configuration) {
+    return NextResponse.json({ error: "Configuration not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ isFavorite: configuration.isFavorite });
+}
 export async function DELETE(_request: Request, context: RouteContext) {
   const { id } = await context.params;
   const configId = parseId(id);

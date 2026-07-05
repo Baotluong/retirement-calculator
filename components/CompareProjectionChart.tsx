@@ -1,9 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   CartesianGrid,
-  Legend,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -15,6 +15,7 @@ import { formatProjectionAge } from "@/lib/age";
 import type { ProjectionYear } from "@/lib/types";
 
 export type CompareChartSeries = {
+  id: number;
   name: string;
   projection: ProjectionYear[];
 };
@@ -86,10 +87,9 @@ export function CompareProjectionChart({ series }: CompareProjectionChartProps) 
                 formatter={(value) => formatCurrency(Number(value))}
                 labelFormatter={(label) => "Age " + formatProjectionAge(Number(label))}
               />
-              <Legend />
               {series.map((item, index) => (
                 <Line
-                  key={item.name}
+                  key={item.id}
                   type="monotone"
                   dataKey={"series" + index}
                   name={item.name}
@@ -106,6 +106,22 @@ export function CompareProjectionChart({ series }: CompareProjectionChartProps) 
             Loading chart...
           </div>
         )}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-2">
+        {series.map((item, index) => (
+          <Link
+            key={item.id}
+            href={"/configurations/" + item.id}
+            className="inline-flex items-center gap-2 text-sm font-medium text-emerald-700 hover:text-emerald-900 hover:underline"
+          >
+            <span
+              className="inline-block h-2.5 w-2.5 rounded-full"
+              style={{ backgroundColor: SERIES_COLORS[index % SERIES_COLORS.length] }}
+              aria-hidden="true"
+            />
+            {item.name}
+          </Link>
+        ))}
       </div>
     </div>
   );

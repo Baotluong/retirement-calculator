@@ -1,4 +1,4 @@
-﻿import {
+import {
   Document,
   Page,
   StyleSheet,
@@ -6,14 +6,14 @@
   View,
 } from "@react-pdf/renderer";
 import { formatCurrentAge } from "@/lib/age";
-import { formatScenarioCurrency, type RetirementAgeProjectionStats, type ScenarioRetirementAgeDetails, type ScenarioSummaryStats } from "@/lib/scenario-summary";
+import { formatScenarioCurrency, type RetirementAgeProjectionStats, type ScenarioProjectionView, type ScenarioRetirementAgeDetails, type ScenarioSummaryStats } from "@/lib/scenario-summary";
 import type { ProjectionYear, RetirementConfig } from "@/lib/types";
 
 export type ScenarioPdfReportData = {
   configuration: RetirementConfig;
   summary: ScenarioSummaryStats;
   retirementAgeDetails: ScenarioRetirementAgeDetails;
-  projection: ProjectionYear[];
+  projectionViews: ScenarioProjectionView[];
 };
 
 const ROWS_PER_PAGE = 26;
@@ -181,9 +181,11 @@ function formatRetirementAgeStats(stats: RetirementAgeProjectionStats | null): s
 function RetirementAgePdfGroup({
   title,
   stats,
+  netWorthLabel = "Net worth at retirement",
 }: {
   title: string;
   stats: RetirementAgeProjectionStats | null;
+  netWorthLabel?: string;
 }) {
   const [atRetirement, peak, ending] = formatRetirementAgeStats(stats);
   const heading = stats ? title + " (" + stats.retirementAge + ")" : title;
@@ -191,15 +193,30 @@ function RetirementAgePdfGroup({
   return (
     <View style={{ marginBottom: 8 }}>
       <Text style={{ fontSize: 10, fontFamily: "Helvetica-Bold", marginBottom: 4 }}>{heading}</Text>
-      <AssumptionRow label="Net worth at retirement" value={atRetirement} />
+      <AssumptionRow label={netWorthLabel} value={atRetirement} />
       <AssumptionRow label="Peak net worth" value={peak} />
       <AssumptionRow label="Ending net worth" value={ending} />
     </View>
   );
 }
+
+function renderProjectionPages(views: ScenarioProjectionView[]) {
+  return views.flatMap((view) => {
+    const chunks = chunkProjection(view.projection);
+
+    return chunks.map((rows, index) => (
+      <Page key={view.id + "-" + index} size="LETTER" style={styles.page}>
+        <Text style={styles.sectionTitle}>
+          {"Year-by-year: " + view.label + (index === 0 ? " (" + view.subtitle + ")" : " (continued)")}
+        </Text>
+        <ProjectionTableHeader />
+        <ProjectionTableRows rows={rows} />
+      </Page>
+    ));
+  });
+}
 export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData }) {
-  const { configuration, summary, retirementAgeDetails, projection } = report;
-  const projectionChunks = chunkProjection(projection);
+  const { configuration, summary, retirementAgeDetails, projectionViews } = report;
 
   return (
     <Document>
@@ -233,6 +250,20 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
             </Text>
           </View>
           <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Coast FIRE age</Text>
+            <Text style={styles.summaryValue}>
+              {summary.coastFireAge === null ? "-" : String(summary.coastFireAge)}
+            </Text>
+          </View>
+          <View style={styles.summaryCard}>
+            <Text style={styles.summaryLabel}>Coast FIRE net worth</Text>
+            <Text style={styles.summaryValue}>
+              {summary.coastFireNetWorth === null
+                ? "-"
+                : formatCurrency(summary.coastFireNetWorth)}
+            </Text>
+          </View>
+          <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Net worth at retirement</Text>
             <Text style={styles.summaryValue}>{formatCurrency(summary.netWorthAtRetirement)}</Text>
           </View>
@@ -255,6 +286,15 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
         <Text style={styles.sectionTitle}>Retirement age projections</Text>
         <RetirementAgePdfGroup title="Earliest retirement age" stats={retirementAgeDetails.earliest} />
         <RetirementAgePdfGroup title="Safe retirement age" stats={retirementAgeDetails.safe} />
+        <RetirementAgePdfGroup
+          title="Coast FIRE age"
+          stats={retirementAgeDetails.coast}
+          netWorthLabel="Net worth at coast age"
+        />
+        <RetirementAgePdfGroup
+          title="Retire at 50"
+          stats={retirementAgeDetails.retireAt50}
+        />
 
         <Text style={styles.sectionTitle}>Assumptions</Text>
         <AssumptionRow label="Scenario name" value={configuration.name} />
@@ -287,6 +327,14 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
           }
         />
         <AssumptionRow
+          label="Coast FIRE age"
+          value={
+            configuration.coastFireAge === null
+              ? "-"
+              : String(configuration.coastFireAge)
+          }
+        />
+        <AssumptionRow
           label="Current net worth"
           value={formatCurrency(configuration.currentNetWorth)}
         />
@@ -301,7 +349,7 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
         />
         <AssumptionRow
           label="Investment return"
-          value={formatPercent(configuration.investmentReturnRate)}
+          value={formatPercent(configuration.investmentReturnRate, 3)}
         />
         <AssumptionRow
           label="Inflation rate"
@@ -309,18 +357,14 @@ export function ScenarioPdfDocument({ report }: { report: ScenarioPdfReportData 
         />
       </Page>
 
-      {projectionChunks.map((rows, index) => (
-        <Page key={index} size="LETTER" style={styles.page}>
-          <Text style={styles.sectionTitle}>
-            Year-by-year breakdown{index > 0 ? " (continued)" : ""}
-          </Text>
-          <ProjectionTableHeader />
-          <ProjectionTableRows rows={rows} />
-        </Page>
-      ))}
+      {renderProjectionPages(projectionViews)}
     </Document>
   );
 }
+
+
+
+
 
 
 

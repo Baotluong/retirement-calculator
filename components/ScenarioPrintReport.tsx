@@ -1,11 +1,14 @@
-﻿import { ConfigForm } from "@/components/ConfigForm";
+import { ConfigForm } from "@/components/ConfigForm";
 import { ProjectionChart } from "@/components/ProjectionChart";
-import { ProjectionTable } from "@/components/ProjectionTable";
+import { ProjectionSections } from "@/components/ProjectionSections";
 import { RetirementAgeStatsSection } from "@/components/RetirementAgeStatsSection";
 import { ScenarioSummaryCards } from "@/components/ScenarioSummaryCards";
 import { formatCurrentAge } from "@/lib/age";
-import { getScenarioRetirementAgeDetails, getScenarioSummaryStats } from "@/lib/scenario-summary";
-import { projectNetWorth } from "@/lib/projection";
+import {
+  getScenarioProjectionViews,
+  getScenarioRetirementAgeDetailsFromViews,
+  getScenarioSummaryStats,
+} from "@/lib/scenario-summary";
 import type { ExpenseMonthInput, NetWorthItemInput, RetirementConfig } from "@/lib/types";
 
 type ScenarioPrintReportProps = {
@@ -21,9 +24,14 @@ export function ScenarioPrintReport({
   expenseBreakdown,
   pageBreakBefore = false,
 }: ScenarioPrintReportProps) {
-  const projection = projectNetWorth(configuration);
+  const projectionViews = getScenarioProjectionViews(configuration);
+  const planProjection =
+    projectionViews.find((view) => view.id === "plan")?.projection ?? [];
   const summary = getScenarioSummaryStats(configuration);
-  const retirementAgeDetails = getScenarioRetirementAgeDetails(configuration);
+  const retirementAgeDetails = getScenarioRetirementAgeDetailsFromViews(
+    projectionViews,
+    configuration
+  );
 
   return (
     <div className={(pageBreakBefore ? "print-break-before " : "") + "space-y-8"}>
@@ -62,14 +70,13 @@ export function ScenarioPrintReport({
 
       <section className="space-y-3 print-break-before">
         <h2 className="text-lg font-semibold text-zinc-900">Projection chart</h2>
-        <ProjectionChart projection={projection} />
+        <ProjectionChart projection={planProjection} />
       </section>
 
       <section className="space-y-3 print-break-before">
         <h2 className="text-lg font-semibold text-zinc-900">Year-by-year breakdown</h2>
-        <ProjectionTable projection={projection} />
+        <ProjectionSections views={projectionViews} />
       </section>
     </div>
   );
 }
-

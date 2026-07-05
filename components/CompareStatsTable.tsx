@@ -1,3 +1,4 @@
+import { CompareScenarioLink } from "@/components/CompareScenarioLink";
 import {
   formatSafeRetirementAgeTooltip,
   formatScenarioCurrency,
@@ -6,6 +7,7 @@ import {
 } from "@/lib/scenario-summary";
 
 export type CompareScenarioRow = {
+  id: number;
   name: string;
   stats: ScenarioSummaryStats;
 };
@@ -34,6 +36,12 @@ const metricRows: MetricRow[] = [
     label: "Safe retirement age",
     format: (value) => (value === null ? "-" : String(value)),
     getCellTooltip: (stats) => formatSafeRetirementAgeTooltip(stats.safeRetirementAmount),
+  },
+  {
+    key: "coastFireAge",
+    label: "Coast FIRE age",
+    format: (value) => (value === null ? "-" : String(value)),
+    getLabelTooltip: () => scenarioSummaryTooltips.coastFireAge,
   },
   {
     key: "netWorthAtRetirement",
@@ -69,8 +77,8 @@ export function CompareStatsTable({ scenarios }: CompareStatsTableProps) {
           <tr>
             <th className="px-4 py-3 font-medium">Metric</th>
             {scenarios.map((scenario) => (
-              <th key={scenario.name} className="px-4 py-3 font-medium">
-                {scenario.name}
+              <th key={scenario.id} className="px-4 py-3 font-medium">
+                <CompareScenarioLink id={scenario.id} label={scenario.name} />
               </th>
             ))}
           </tr>
@@ -86,7 +94,7 @@ export function CompareStatsTable({ scenarios }: CompareStatsTableProps) {
               </td>
               {scenarios.map((scenario) => (
                 <td
-                  key={scenario.name + metric.key}
+                  key={scenario.id + "-" + metric.key}
                   className="px-4 py-3 font-medium text-zinc-900"
                   title={metric.getCellTooltip?.(scenario.stats)}
                 >
@@ -100,3 +108,5 @@ export function CompareStatsTable({ scenarios }: CompareStatsTableProps) {
     </div>
   );
 }
+
+

@@ -1,4 +1,4 @@
-import { recomputeAllDerivedConfigurationFields } from "../lib/queries";
+﻿import { recomputeAllDerivedConfigurationFields } from "../lib/queries";
 
 const verbose = process.argv.includes("--verbose");
 
@@ -13,13 +13,13 @@ async function recomputeDerived() {
     for (const scenario of result.scenarios) {
       if (scenario.changed) {
         console.log(
-          `#${scenario.id} ${scenario.name}: updated (earliest ${formatAge(scenario.previousEarliestRetirementAge)} -> ${formatAge(scenario.earliestRetirementAge)}, safe ${formatAge(scenario.previousSafeRetirementAge)} -> ${formatAge(scenario.safeRetirementAge)})`
+          `#${scenario.id} ${scenario.name}: updated (earliest ${formatAge(scenario.previousEarliestRetirementAge)} -> ${formatAge(scenario.earliestRetirementAge)}, safe ${formatAge(scenario.previousSafeRetirementAge)} -> ${formatAge(scenario.safeRetirementAge)}, coast ${formatAge(scenario.previousCoastFireAge)} -> ${formatAge(scenario.coastFireAge)})`
         );
         continue;
       }
 
       console.log(
-        `#${scenario.id} ${scenario.name}: unchanged (earliest ${formatAge(scenario.earliestRetirementAge)}, safe ${formatAge(scenario.safeRetirementAge)})`
+        `#${scenario.id} ${scenario.name}: unchanged (earliest ${formatAge(scenario.earliestRetirementAge)}, safe ${formatAge(scenario.safeRetirementAge)}, coast ${formatAge(scenario.coastFireAge)})`
       );
     }
     console.log("");

@@ -1,4 +1,4 @@
-﻿import { InfoTooltip } from "@/components/InfoTooltip";
+import { InfoTooltip } from "@/components/InfoTooltip";
 import {
   formatScenarioCurrency,
   scenarioSummaryTooltips,
@@ -28,32 +28,42 @@ function StatRow({ label, value, tooltip }: StatRowProps) {
   );
 }
 
+type RetirementAgeCardProps = {
+  title: string;
+  stats: RetirementAgeProjectionStats | null;
+  netWorthLabel: string;
+  netWorthTooltip: string;
+  peakNetWorthTooltip: string;
+  endingNetWorthTooltip: string;
+};
+
 function RetirementAgeCard({
   title,
   stats,
-}: {
-  title: string;
-  stats: RetirementAgeProjectionStats | null;
-}) {
+  netWorthLabel,
+  netWorthTooltip,
+  peakNetWorthTooltip,
+  endingNetWorthTooltip,
+}: RetirementAgeCardProps) {
   return (
     <article className="rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
       <h3 className="text-lg font-semibold text-zinc-900">{title}</h3>
       {stats ? (
         <dl className="mt-3">
           <StatRow
-            label="Net worth at retirement"
+            label={netWorthLabel}
             value={formatScenarioCurrency(stats.netWorthAtRetirement)}
-            tooltip={scenarioSummaryTooltips.retirementAgeNetWorth}
+            tooltip={netWorthTooltip}
           />
           <StatRow
             label="Peak net worth"
             value={formatScenarioCurrency(stats.peakNetWorth)}
-            tooltip={scenarioSummaryTooltips.retirementAgePeakNetWorth}
+            tooltip={peakNetWorthTooltip}
           />
           <StatRow
             label="Ending net worth"
             value={formatScenarioCurrency(stats.endingNetWorth)}
-            tooltip={scenarioSummaryTooltips.retirementAgeEndingNetWorth}
+            tooltip={endingNetWorthTooltip}
           />
         </dl>
       ) : (
@@ -69,10 +79,10 @@ export function RetirementAgeStatsSection({ details }: RetirementAgeStatsSection
       <div>
         <h2 className="text-xl font-semibold">Retirement age projections</h2>
         <p className="mt-1 text-sm text-zinc-600">
-          Net worth if you retire at the earliest sustainable age or the safe retirement age.
+          Net worth under earliest retirement, safe retirement, or coast FIRE until your chosen retirement age.
         </p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <RetirementAgeCard
           title={
             details.earliest
@@ -80,6 +90,10 @@ export function RetirementAgeStatsSection({ details }: RetirementAgeStatsSection
               : "Earliest retirement age"
           }
           stats={details.earliest}
+          netWorthLabel="Net worth at retirement"
+          netWorthTooltip={scenarioSummaryTooltips.retirementAgeNetWorth}
+          peakNetWorthTooltip={scenarioSummaryTooltips.retirementAgePeakNetWorth}
+          endingNetWorthTooltip={scenarioSummaryTooltips.retirementAgeEndingNetWorth}
         />
         <RetirementAgeCard
           title={
@@ -88,6 +102,34 @@ export function RetirementAgeStatsSection({ details }: RetirementAgeStatsSection
               : "Safe retirement age"
           }
           stats={details.safe}
+          netWorthLabel="Net worth at retirement"
+          netWorthTooltip={scenarioSummaryTooltips.retirementAgeNetWorth}
+          peakNetWorthTooltip={scenarioSummaryTooltips.retirementAgePeakNetWorth}
+          endingNetWorthTooltip={scenarioSummaryTooltips.retirementAgeEndingNetWorth}
+        />
+        <RetirementAgeCard
+          title={
+            details.coast
+              ? "Coast FIRE age (" + details.coast.retirementAge + ")"
+              : "Coast FIRE age"
+          }
+          stats={details.coast}
+          netWorthLabel="Net worth at coast age"
+          netWorthTooltip={scenarioSummaryTooltips.coastAgeNetWorth}
+          peakNetWorthTooltip={scenarioSummaryTooltips.coastAgePeakNetWorth}
+          endingNetWorthTooltip={scenarioSummaryTooltips.coastAgeEndingNetWorth}
+        />
+        <RetirementAgeCard
+          title={
+            details.retireAt50
+              ? "Retire at 50 (" + details.retireAt50.retirementAge + ")"
+              : "Retire at 50"
+          }
+          stats={details.retireAt50}
+          netWorthLabel="Net worth at retirement"
+          netWorthTooltip={scenarioSummaryTooltips.retireAt50NetWorth}
+          peakNetWorthTooltip={scenarioSummaryTooltips.retireAt50PeakNetWorth}
+          endingNetWorthTooltip={scenarioSummaryTooltips.retireAt50EndingNetWorth}
         />
       </div>
     </section>

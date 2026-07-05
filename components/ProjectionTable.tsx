@@ -15,7 +15,7 @@ const calculatedColumnTooltips = {
   netWorth:
     "Starting balance plus this period's contributions and investment growth.",
   income:
-    "Annual takehome while working, prorated for partial years. $0 after retirement.",
+    "Take-home while working, prorated for partial years. $0 during an income delay, after retirement, or while unemployed.",
   expenses:
     "Inflated annual expenses, plus any post-retirement adjustment when retired.",
   contributions: "Income minus expenses for this period.",
@@ -110,4 +110,5 @@ export function ProjectionTable({ projection }: ProjectionTableProps) {
     </div>
   );
 }
+
 
